@@ -19,6 +19,11 @@ Motor::Motor(uint8_t mPin1, uint8_t mPin2, bool mInverted) {
     mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_0, &pwm_config);
 }
 
+void Motor :: stop() {
+    mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, 0.0);
+    mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_B, 0.0);
+}
+
 void Motor::setPWMPercent(int8_t percent) {
     // Clamp the value
     if(percent > 100) percent = 100;

@@ -9,6 +9,8 @@ class Motor {
 
         // sets duty cycle as positive or negative percentage of full speed (for direction)
         void setPWMPercent(int8_t percent);
+
+        void stop();
         
     private:
         uint8_t mPin1;

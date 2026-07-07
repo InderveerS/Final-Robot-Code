@@ -28,7 +28,7 @@ float PID::update(float error) {
     // Calculate the PID output
     float output = p + i + d;
 
-    // Update integral
+    // Update integral with anti-windup
     if(output > outMin && output < outMax) {
         integral += error * dt;
     }

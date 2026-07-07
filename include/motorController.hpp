@@ -8,7 +8,7 @@
 class MotorController {
     public:
         MotorController(uint8_t mPin1, uint8_t mPin2, bool mInverted, uint8_t mEncPin1, uint8_t mEncPin2, 
-            float kp, float ki, float kd, float dt, float alpha);
+            pcnt_unit_t mUnit, float kp, float ki, float kd, float dt, float alpha);
 
         void setTargetVelocity(float target);
 
@@ -16,8 +16,13 @@ class MotorController {
         uint8_t mPin1;
         uint8_t mPin2;
         bool mInverted;
+
         uint8_t mEncPin1;
         uint8_t mEncPin2;
+        const float mCountsPerRev = 2048.0; // TODO: update this to match the actual encoder counts per revolution
+        const float mWheelCircumferenceM = 0.08255; // Double check this
+        pcnt_unit_t mUnit;
+
         float mKp;
         float mKi;
         float mKd;
