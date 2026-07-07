@@ -19,6 +19,8 @@ MotorController::MotorController(uint8_t mPin1, uint8_t mPin2, bool mInverted,
     this->mKd = kd;
     this->mDt = dt;
     this->mAlpha = alpha;
+
+    encoder.begin(); // Initialize the encoder
 }
 
 void MotorController::setTargetVelocity(float target) {
