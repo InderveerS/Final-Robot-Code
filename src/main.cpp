@@ -2,21 +2,23 @@
 #include "motorController.hpp"
 #include "lineController.hpp"
 
-#define LEFT_MOTOR_PIN1 5
-#define LEFT_MOTOR_PIN2 4
-#define LEFT_ENCODER_PIN1 18
-#define LEFT_ENCODER_PIN2 19
+#define LEFT_MOTOR_PIN1 42
+#define LEFT_MOTOR_PIN2 41
+#define LEFT_ENCODER_PIN1 38
+#define LEFT_ENCODER_PIN2 39
 
-#define RIGHT_MOTOR_PIN1 17
-#define RIGHT_MOTOR_PIN2 16
-#define RIGHT_ENCODER_PIN1 21
-#define RIGHT_ENCODER_PIN2 22
+#define RIGHT_MOTOR_PIN1 46
+#define RIGHT_MOTOR_PIN2 45
+#define RIGHT_ENCODER_PIN1 48
+#define RIGHT_ENCODER_PIN2 47
 
 // actually fix the pins and PID constants later
-// MotorController(uint8_t mPin1, uint8_t mPin2, bool mInverted, uint8_t mEncPin1, uint8_t mEncPin2, pcnt_unit_t mUnit, float kp, float ki, float kd, float dt, float alpha);
-
-MotorController leftMotor(LEFT_MOTOR_PIN1, LEFT_MOTOR_PIN2, false, LEFT_ENCODER_PIN1, LEFT_ENCODER_PIN2, PCNT_UNIT_0, 1.0f, 0.0f, 0.0f, 0.01f, 0.1f);
-MotorController rightMotor(RIGHT_MOTOR_PIN1, RIGHT_MOTOR_PIN2, true, RIGHT_ENCODER_PIN1, RIGHT_ENCODER_PIN2, PCNT_UNIT_1, 1.0f, 0.0f, 0.0f, 0.01f, 0.1f);
+// MotorController(uint8_t mPin1, uint8_t mPin2, bool mInverted, mcpwm_unit_t mcpwmUnit, mcpwm_timer_t mcpwmTimer,
+// uint8_t mEncPin1, uint8_t mEncPin2, pcnt_unit_t mUnit, float kp, float ki, float kd, float dt, float alpha);
+MotorController leftMotor(LEFT_MOTOR_PIN1, LEFT_MOTOR_PIN2, false, MCPWM_UNIT_0, MCPWM_TIMER_0, 
+    LEFT_ENCODER_PIN1, LEFT_ENCODER_PIN2, PCNT_UNIT_0, 1.0f, 0.0f, 0.0f, 0.01f, 0.1f);
+MotorController rightMotor(RIGHT_MOTOR_PIN1, RIGHT_MOTOR_PIN2, true, MCPWM_UNIT_0, MCPWM_TIMER_1, 
+    RIGHT_ENCODER_PIN1, RIGHT_ENCODER_PIN2, PCNT_UNIT_1, 1.0f, 0.0f, 0.0f, 0.01f, 0.1f);
 
 IRArray irArray;
 

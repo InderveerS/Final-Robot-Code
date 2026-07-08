@@ -1,9 +1,10 @@
 #include "motorController.hpp"
 
 
-MotorController::MotorController(uint8_t mPin1, uint8_t mPin2, bool mInverted, 
+MotorController::MotorController(uint8_t mPin1, uint8_t mPin2, bool mInverted, mcpwm_unit_t mcpwmUnit, mcpwm_timer_t mcpwmTimer,
     uint8_t mEncPin1, uint8_t mEncPin2, pcnt_unit_t mUnit, float kp, float ki, float kd, float dt, float alpha) : 
-    motor(mPin1, mPin2, mInverted), pid(kp, ki, kd, dt, mOutMin, mOutMax, alpha), 
+    
+    motor(mPin1, mPin2, mInverted, mcpwmUnit, mcpwmTimer), pid(kp, ki, kd, dt, mOutMin, mOutMax, alpha), 
     encoder(mEncPin1, mEncPin2, mUnit, mCountsPerRev, mWheelCircumferenceM) 
 {
     this->mPin1 = mPin1;
