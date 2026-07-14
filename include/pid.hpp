@@ -3,9 +3,14 @@
 
 class PID {
     public:
-        PID(float kp, float ki, float kd, float dt, float outMin, float outMax, float alpha);
-
+        PID(float kp, float ki, float kd, float dt, float outMin, float outMax, float alpha, float integralActivationThreshold);
         float update(float error);
+
+        void reset() {
+            integral = 0.0f;
+            lastError = 0.0f;
+            lastFilteredD = 0.0f;
+        }
         
     private:
         float kp;
@@ -19,8 +24,12 @@ class PID {
 
         float alpha;
 
-        float integral = 0.0;
-        float lastError = 0.0;
+        float integralActivationThreshold;
+
+        float integral = 0.0f;
+        float lastError = 0.0f;
+
+        float lastFilteredD = 0.0f;
 
         static float clamp(float val, float min, float max) {
             if (val > max)

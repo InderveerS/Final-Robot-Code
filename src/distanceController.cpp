@@ -1,7 +1,7 @@
 #include "distanceController.hpp"
 
 DistanceController::DistanceController(MotorController& leftMotor, MotorController& rightMotor, float kp, float ki, float kd, float dt, float alpha) 
-    : LeftMotor(leftMotor), RightMotor(rightMotor), distancePID(kp, ki, kd, dt, velMin, velMax, alpha) {
+    : LeftMotor(leftMotor), RightMotor(rightMotor), distancePID(kp, ki, kd, dt, velMin, velMax, alpha, 0.0f) {
     this->kp = kp;
     this->ki = ki;
     this->kd = kd;

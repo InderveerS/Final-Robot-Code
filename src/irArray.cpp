@@ -31,6 +31,12 @@ void IRArray :: calibrateMiddle() {
     if (r < minR) minR = r;  if (r > maxR) maxR = r;
 }    
 
+uint16_t IRArray :: getTotal() {
+     return normalize(adc1_get_raw(LEFT_CH), minL, maxL) + 
+     normalize(adc1_get_raw(CENTER_CH), minC, maxC) + 
+     normalize(adc1_get_raw(RIGHT_CH), minR, maxR);
+}
+
 float IRArray :: readLine() {
     uint16_t left = adc1_get_raw(LEFT_CH);
     uint16_t center = adc1_get_raw(CENTER_CH);

@@ -4,8 +4,8 @@
 MotorController::MotorController(uint8_t mPin1, uint8_t mPin2, bool mInverted, mcpwm_unit_t mcpwmUnit, mcpwm_timer_t mcpwmTimer,
     uint8_t mEncPin1, uint8_t mEncPin2, pcnt_unit_t mUnit, float kp, float ki, float kd, float dt, float alpha) : 
     
-    motor(mPin1, mPin2, mInverted, mcpwmUnit, mcpwmTimer), pid(kp, ki, kd, dt, mOutMin, mOutMax, alpha), 
-    encoder(mEncPin1, mEncPin2, mUnit, mCountsPerRev, mWheelCircumferenceM) 
+    motor(mPin1, mPin2, mInverted, mcpwmUnit, mcpwmTimer), pid(kp, ki, kd, dt, OUT_MIN, OUT_MAX, alpha, INTEGRAL_THRESH), 
+    encoder(mEncPin1, mEncPin2, mUnit, COUNTS_PER_REV, WHEEL_CIRCUMFERENCE_M) 
 {
     this->mPin1 = mPin1;
     this->mPin2 = mPin2;
@@ -25,8 +25,19 @@ MotorController::MotorController(uint8_t mPin1, uint8_t mPin2, bool mInverted, m
 }
 
 void MotorController::setTargetVelocity(float target) {
+    // float maxDelta = MAX_ACCEL * mDt;
+    // if (target > mRampedTarget + maxDelta)      mRampedTarget += maxDelta;
+    // else if (target < mRampedTarget - maxDelta) mRampedTarget -= maxDelta;
+    // else                                        mRampedTarget = target;
+
+    mRampedTarget = target;
+
     float velocity = encoder.getVelocity(mDt);
-    float error = target - velocity;
+    mLastVelocity = velocity; // Update the last measured velocity
+    float error = mRampedTarget - velocity;
     float output = pid.update(error);
-    motor.setPWMPercent(static_cast<int8_t>(output)); // TODO: look into adding feedforward portion when velocity mapping is done
+
+    float feedforward = (mRampedTarget / MAX_VELOCITY) * 100.0f;
+    float final_pwm = constrain(feedforward + output, -100.0f, 100.0f);
+    motor.setPWMPercent(static_cast<int8_t>(roundf(final_pwm)));
 }

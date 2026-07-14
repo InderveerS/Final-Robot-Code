@@ -27,8 +27,8 @@ void Encoder::begin() {
     chanB.channel = PCNT_CHANNEL_1;
     chanB.pos_mode = PCNT_COUNT_DEC;
     chanB.neg_mode = PCNT_COUNT_INC;
-    chanB.lctrl_mode = PCNT_MODE_KEEP;
-    chanB.hctrl_mode = PCNT_MODE_REVERSE;
+    // chanB.lctrl_mode = PCNT_MODE_KEEP;
+    // chanB.hctrl_mode = PCNT_MODE_REVERSE;
     pcnt_unit_config(&chanB);
 
     pcnt_set_filter_value(mUnit, 250); // TODO: tune this for encoder
@@ -51,6 +51,11 @@ void Encoder::begin() {
     pcnt_counter_pause(mUnit);
     pcnt_counter_clear(mUnit);
     pcnt_counter_resume(mUnit);
+
+    gpio_pullup_en((gpio_num_t)mPinA);
+    gpio_pullup_en((gpio_num_t)mPinB);
+
+    portMUX_TYPE mMux = portMUX_INITIALIZER_UNLOCKED;
 }
 
 void IRAM_ATTR Encoder::onOverflow(void* arg) {

@@ -1,7 +1,7 @@
 #include "pid.hpp"
 #include <Arduino.h>
 
-PID::PID(float kp, float ki, float kd, float dt, float outMin, float outMax, float alpha) {
+PID::PID(float kp, float ki, float kd, float dt, float outMin, float outMax, float alpha, float integralActivationThreshold) {
     this->kp = kp;
     this->ki = ki;
     this->kd = kd;
@@ -9,6 +9,7 @@ PID::PID(float kp, float ki, float kd, float dt, float outMin, float outMax, flo
     this->outMin = outMin;
     this->outMax = outMax;
     this->alpha = alpha;
+    this->integralActivationThreshold = integralActivationThreshold;
 }
 
 float PID::update(float error) {
@@ -16,11 +17,10 @@ float PID::update(float error) {
 
     float i = ki * integral;
 
-    float d = (error - lastError) / dt;
-
-    // Apply low-pass filter to derivative
-    d = alpha * d + (1 - alpha) * lastError;
-    d = kd * d;
+    float rawD = (error - lastError) / dt;
+    float filteredD = alpha * rawD + (1 - alpha) * lastFilteredD;
+    lastFilteredD = filteredD;
+    float d = kd * filteredD;
 
     // Update lastError 
     lastError = error;
