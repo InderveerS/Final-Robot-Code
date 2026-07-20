@@ -17,8 +17,11 @@ void LineController :: updateLinePID() {
 }
 
 void LineController :: updateMotorPID() {
-    float leftVel = baseVel - (omega * wheelbase / 2.0f);
-    float rightVel = baseVel + (omega * wheelbase / 2.0f);
+
+    realVel = baseVel * (1.0f - VEL_CHANGE_CONST *(fabs(omega) / maxCorrection)); // Adjust base velocity based on angular velocity
+
+    float leftVel = realVel - (omega * wheelbase / 2.0f);
+    float rightVel = realVel + (omega * wheelbase / 2.0f);
 
     LeftMotor.setTargetVelocity(leftVel);
     RightMotor.setTargetVelocity(rightVel);

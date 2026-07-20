@@ -32,12 +32,16 @@ void MotorController::setTargetVelocity(float target) {
 
     mRampedTarget = target;
 
-    float velocity = encoder.getVelocity(mDt);
+    float velocity = encoder.getVelocity();
     mLastVelocity = velocity; // Update the last measured velocity
     float error = mRampedTarget - velocity;
     float output = pid.update(error);
 
-    float feedforward = (mRampedTarget / MAX_VELOCITY) * 100.0f;
-    float final_pwm = constrain(feedforward + output, -100.0f, 100.0f);
+    // Affine feedforward with deadband, applied in the direction of travel.
+    float feedforward = 0.0f;
+    if (mRampedTarget > FF_VEL_THRESHOLD)       feedforward = FF_DEADBAND + FF_SLOPE * mRampedTarget;
+    else if (mRampedTarget < -FF_VEL_THRESHOLD) feedforward = -FF_DEADBAND + FF_SLOPE * mRampedTarget;
+
+    float final_pwm = constrain(feedforward + output, OUT_MIN, OUT_MAX);
     motor.setPWMPercent(static_cast<int8_t>(roundf(final_pwm)));
 }

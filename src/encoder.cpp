@@ -105,6 +105,25 @@ float Encoder::getVelocity(float dt) {
     return (deltaTicks * mMetersPerCount) / dt;
 }
 
+float Encoder::getVelocity() {
+    uint32_t nowMicros = micros();
+    int32_t now = readAbsoluteTicks();
+
+    if (mLastVelocityMicros == 0) {          // first call: seed refs, no valid dt yet
+        mLastVelocityMicros = nowMicros;
+        mLastVelocityTicks = now;
+        return 0.0f;
+    }
+
+    int32_t deltaTicks = now - mLastVelocityTicks;
+    float dt = (nowMicros - mLastVelocityMicros) * 1e-6f;  // us -> s (unsigned sub handles wrap)
+    mLastVelocityTicks = now;
+    mLastVelocityMicros = nowMicros;
+
+    if (dt < 0.001f) dt = 0.001f;            // 1 ms floor: kills the divide-by-tiny spike
+    return (deltaTicks * mMetersPerCount) / dt;
+}
+
 void Encoder::startDistance() {
     mDistanceRefTicks = readAbsoluteTicks();
 }

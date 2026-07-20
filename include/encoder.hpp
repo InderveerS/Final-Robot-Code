@@ -30,6 +30,9 @@ class Encoder {
         // never measures or waits on time itself, so it never blocks.
         float getVelocity(float dt);
 
+        // uses micros()
+        float getVelocity(); 
+
         // Distance tracking, in meters, relative to a reference point.
         void startDistance();          // mark the reference point
         float getDistance();           // distance since reference (non-destructive)
@@ -49,4 +52,5 @@ class Encoder {
 
         int32_t mLastVelocityTicks = 0;
         int32_t mDistanceRefTicks = 0;
+        uint32_t mLastVelocityMicros = 0;
 };

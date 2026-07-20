@@ -17,7 +17,10 @@ class LineController {
         static constexpr float target = 0.0f;
         static constexpr float maxCorrection = 5.263394f;
         static constexpr float wheelbase = 0.254f;
-        static constexpr float baseVel = 0.32f;
+        static constexpr float baseVel = 0.37f;
+        static constexpr float VEL_CHANGE_CONST = 1.0f; // Adjust this constant to control how much the base velocity changes with angular velocity
+
+        float realVel = 0.0f;
 
         PID linePID;
 
