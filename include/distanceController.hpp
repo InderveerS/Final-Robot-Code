@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include "motorController.hpp"
 #include "imu.hpp"
+#include "stopReason.hpp"
 
 class DistanceController {
     public:
@@ -15,6 +16,19 @@ class DistanceController {
         void update(); // call at 100 Hz while driving
         bool isSettled() const { return mSettledCount >= SETTLE_CYCLES; }
         float getDistance() const { return mLastDistance; }
+        // Blocking: drives targetDistance then returns. Gives up after
+        // timeoutMs so a move that can never settle can't hang the mission.
+        void move(float targetDistance, uint16_t delayMs, uint16_t timeoutMs = 8000);
+
+        // Blocking: drives straight at a CONSTANT velocity (independent of the
+        // distance-PID clamps) with heading hold, until the event fires OR
+        // maxDistance (average encoder travel, m) is reached. Returns why.
+        //   velocity   : m/s, signed (negative = reverse); the search speed
+        //   event      : predicate polled each cycle; nullptr disables it
+        //   maxDistance : <= 0 disables the distance backstop
+        //   stopAtEnd  : true stops the motors on exit, false coasts
+        StopReason moveUntil(float velocity, bool (*event)(), float maxDistance,
+                             uint16_t delayMs, bool stopAtEnd = true, uint16_t timeoutMs = 10000);
 
     private:
         static constexpr float velMax = 0.5f;            // m/s

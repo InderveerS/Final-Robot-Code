@@ -64,8 +64,11 @@ void Imu::update() {
     uint32_t nowMicros = micros();
     // Rate register: deg/s, no fusion pipeline, valid to +/-2000 deg/s.
     float rate = GYRO_SIGN * GYRO_SCALE * ((float)bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE).z() - mGyroBias);
-    // Fused Euler heading, converted to the robot's CCW-positive convention.
-    float euler = EULER_SIGN * (float)bno.getVector(Adafruit_BNO055::VECTOR_EULER).x();
+    // Fused Euler vector (one read): x = heading, y = roll, z = pitch.
+    auto eulerVec = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
+    float euler = EULER_SIGN * (float)eulerVec.x(); // heading, CCW-positive
+    mRoll = (float)eulerVec.y();                    // gravity-referenced, cache raw
+    mPitch = (float)eulerVec.z();
 
     if (mFirstRead) {
         mLastMicros = nowMicros;

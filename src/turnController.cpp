@@ -45,3 +45,55 @@ void TurnController::update() {
         mSettledCount = 0;
     }
 }
+
+void TurnController::turn(float Deg, uint16_t delayMs, uint16_t timeoutMs) {
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xFrequency = pdMS_TO_TICKS(delayMs);
+    const TickType_t deadline = xLastWakeTime + pdMS_TO_TICKS(timeoutMs);
+    
+    turnTo(Deg);
+    // Block until settled or the deadline passes. The signed tick difference
+    // handles the (rare) tick-counter wraparound correctly.
+    while (!isSettled() && (int32_t)(deadline - xTaskGetTickCount()) > 0) {
+        update();
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+
+    // Stop so a finished or timed-out turn doesn't keep commanding the motors.
+    LeftMotor.setTargetVelocity(0.0f);
+    RightMotor.setTargetVelocity(0.0f);
+}
+
+StopReason TurnController::turnUntil(float omegaDps, bool (*event)(), float maxAngle,
+                                     uint16_t delayMs, bool stopAtEnd, uint16_t timeoutMs) {
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xFrequency = pdMS_TO_TICKS(delayMs);
+    const TickType_t deadline = xLastWakeTime + pdMS_TO_TICKS(timeoutMs);
+
+    float startHeading = imu.getHeading();
+    // Constant angular rate (NOT the turn PID): fixed differential from omegaDps.
+    float halfV = omegaDps * DEG_TO_RAD * MotorController::WHEELBASE_M / 2.0f;
+
+    StopReason reason = StopReason::Timeout;
+    for (;;) {
+        // Re-command each cycle to keep the velocity loop closed.
+        LeftMotor.setTargetVelocity(-halfV);
+        RightMotor.setTargetVelocity(halfV);
+
+        if (event != nullptr && event()) { reason = StopReason::Event; break; }
+
+        if (maxAngle > 0.0f && fabsf(imu.getHeading() - startHeading) >= maxAngle) {
+            reason = StopReason::Limit; break;
+        }
+
+        if ((int32_t)(deadline - xTaskGetTickCount()) <= 0) { reason = StopReason::Timeout; break; }
+
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+
+    if (stopAtEnd) {
+        LeftMotor.setTargetVelocity(0.0f);
+        RightMotor.setTargetVelocity(0.0f);
+    }
+    return reason;
+}

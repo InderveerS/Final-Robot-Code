@@ -9,7 +9,7 @@
 #define FAR_RIGHT_CH ADC1_CHANNEL_4
 
 #define LINE_PRESENT_THRESHOLD 220 // TODO: tune this for line detection
-#define MAX_ERROR 20 // TODO: tune this for line detection
+#define MAX_ERROR 21 // TODO: tune this for line following
 
 class IRArray {
     public: 
@@ -45,11 +45,14 @@ class IRArray {
         // MinL: 163, MaxL: 1193, MinC: 160, MaxC: 1881, MinR: 165, MaxR: 1514
         // MinL: 185, MaxL: 3209, MinC: 158, MaxC: 1979, MinR: 191, MaxR: 3037
         // MinL: 200, MaxL: 2855, MinC: 191, MaxC: 2923, MinR: 203, MaxR: 2839
-        uint16_t minL = 200, maxL = 2855;
-        uint16_t minC = 191, maxC = 2923;
-        uint16_t minR = 203, maxR = 2839;
-        uint16_t minFL = 4095, maxFL = 0;
-        uint16_t minFR = 4095, maxFR = 0;
+        // MinL: 217, MaxL: 3391, MinC: 201, MaxC: 2724, MinR: 201, MaxR: 3303
+        uint16_t minL = 217, maxL = 3391;
+        uint16_t minC = 201, maxC = 2724;
+        uint16_t minR = 201, maxR = 3303;
+
+        // MinFR: 1235, MaxFR: 3877, MinFL: 267, MaxFL: 3271
+        uint16_t minFL = 267, maxFL = 3271;
+        uint16_t minFR = 1235, maxFR = 3877;
 
         int8_t lastDirection = 0; // -1 for left, 1 for right, 0 for center
 };    

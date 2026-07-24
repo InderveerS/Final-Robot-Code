@@ -17,11 +17,13 @@ class MotorController {
         static constexpr float WHEELBASE_M = 0.254f; // distance between wheel centers
 
         // Feedforward: duty = sign(v)*FF_DEADBAND + FF_SLOPE*v (affine fit of the
-        // duty->velocity sweep's MOVING region - motion onset is ~35% but the
-        // running curve extrapolates back to ~29; static > kinetic friction).
+        // duty->velocity sweep's MOVING region - motion onset is ~37% but the
+        // running curve extrapolates back to ~21; static > kinetic friction).
+        // The curve saturates above ~0.52 m/s (near velMax), so top-end sweep
+        // points are excluded from the fit. Retuned after the chassis rebuild.
         // Below FF_VEL_THRESHOLD we command 0 so the robot can actually stop.
-        static constexpr float FF_DEADBAND = 26.0f;      // duty %
-        static constexpr float FF_SLOPE = 80.0f;         // duty % per m/s
+        static constexpr float FF_DEADBAND = 21.0f;      // duty %
+        static constexpr float FF_SLOPE = 84.0f;         // duty % per m/s
         static constexpr float FF_VEL_THRESHOLD = 0.02f; // m/s
 
         MotorController(uint8_t mPin1, uint8_t mPin2, bool mInverted, mcpwm_unit_t mcpwmUnit, mcpwm_timer_t mcpwmTimer,

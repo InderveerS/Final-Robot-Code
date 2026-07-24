@@ -54,3 +54,60 @@ void DistanceController::update() {
         mSettledCount = 0;
     }
 }
+
+void DistanceController::move(float targetDistance, uint16_t delayMs, uint16_t timeoutMs) {
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xFrequency = pdMS_TO_TICKS(delayMs);
+    const TickType_t deadline = xLastWakeTime + pdMS_TO_TICKS(timeoutMs);
+
+    startMove(targetDistance);
+    // Block until settled or the deadline passes. The signed tick difference
+    // handles the (rare) tick-counter wraparound correctly.
+    while (!isSettled() && (int32_t)(deadline - xTaskGetTickCount()) > 0) {
+        update();
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+
+    // Stop so a finished or timed-out move doesn't keep commanding the motors.
+    LeftMotor.setTargetVelocity(0.0f);
+    RightMotor.setTargetVelocity(0.0f);
+}
+
+StopReason DistanceController::moveUntil(float velocity, bool (*event)(), float maxDistance,
+                                        uint16_t delayMs, bool stopAtEnd, uint16_t timeoutMs) {
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xFrequency = pdMS_TO_TICKS(delayMs);
+    const TickType_t deadline = xLastWakeTime + pdMS_TO_TICKS(timeoutMs);
+
+    LeftMotor.encoder.startDistance();
+    RightMotor.encoder.startDistance();
+    mTargetHeading = imu.getHeading();
+    headingPID.reset();
+
+    StopReason reason = StopReason::Timeout;
+    for (;;) {
+        // Constant commanded speed (NOT the distance PID), heading hold keeps
+        // the path straight. Must re-command each cycle to keep the velocity
+        // loop closed.
+        float headingError = mTargetHeading - imu.getHeading();
+        float omega = headingPID.update(headingError);
+        float halfV = omega * DEG_TO_RAD * MotorController::WHEELBASE_M / 2.0f;
+        LeftMotor.setTargetVelocity(velocity - halfV);
+        RightMotor.setTargetVelocity(velocity + halfV);
+
+        if (event != nullptr && event()) { reason = StopReason::Event; break; }
+
+        float avgDist = (LeftMotor.encoder.getDistance() + RightMotor.encoder.getDistance()) / 2.0f;
+        if (maxDistance > 0.0f && fabsf(avgDist) >= maxDistance) { reason = StopReason::Limit; break; }
+
+        if ((int32_t)(deadline - xTaskGetTickCount()) <= 0) { reason = StopReason::Timeout; break; }
+
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+
+    if (stopAtEnd) {
+        LeftMotor.setTargetVelocity(0.0f);
+        RightMotor.setTargetVelocity(0.0f);
+    }
+    return reason;
+}

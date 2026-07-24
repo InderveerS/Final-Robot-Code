@@ -30,12 +30,22 @@ class Imu {
         // Cached value - no I2C, safe to call from anywhere.
         float getHeading() const { return mHeading; }
 
+        // Tilt from the fused Euler output (DEGREES), absolute (not zeroed at
+        // start). Gravity-referenced, so unlike heading these are drift-free
+        // and unaffected by rotation speed - reliable even during a run. Which
+        // one tracks a ramp depends on how the chip is mounted; check on
+        // hardware which moves when the robot tips forward, and its sign.
+        float getRoll() const { return mRoll; }   // BNO055 Euler y
+        float getPitch() const { return mPitch; } // BNO055 Euler z
+
         static float wrapTo180(float angle); // wrap into [-180, 180] degrees
 
     private:
         Adafruit_BNO055 bno;
 
         float mHeading = 0.0f;   // accumulated continuous heading (deg)
+        float mRoll = 0.0f;      // fused Euler roll (deg), gravity-referenced
+        float mPitch = 0.0f;     // fused Euler pitch (deg), gravity-referenced
         float mGyroBias = 0.0f;  // gyro-z rest bias (deg/s), captured in begin()
         float mLastRate = 0.0f;  // previous rate sample (deg/s), for trapezoid
         float mLastEuler = 0.0f; // previous fused Euler heading (deg, CCW+)
