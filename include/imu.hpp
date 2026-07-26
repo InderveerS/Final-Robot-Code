@@ -3,10 +3,7 @@
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BNO055.h>
-
-#define IMU_SDA_PIN 40
-#define IMU_SCL_PIN 21
-#define IMU_I2C_CLOCK_HZ 400000UL // drop to 100000UL if reads get flaky
+#include "config.hpp"
 
 class Imu {
     public:

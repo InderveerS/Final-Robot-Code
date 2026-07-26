@@ -1,7 +1,8 @@
 #pragma once
 #include <stdint.h>
 #include <Arduino.h>
-#include "driver/mcpwm.h" 
+#include "driver/mcpwm.h"
+#include "config.hpp"
 
 class Motor {
     public:
@@ -21,7 +22,6 @@ class Motor {
         mcpwm_io_signals_t signalA, signalB;
         int8_t last_dir = 0;
 
-        const uint16_t freq = 1000; //PWM channel frequency Hz
-        // const uint8_t resolution = 8; //PWM channel resolution bits
+        const uint16_t freq = cfg::MOTOR_PWM_FREQ_HZ;
 
 };

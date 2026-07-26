@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include "config.hpp"
 #include "motorController.hpp"
 #include "imu.hpp"
 #include "stopReason.hpp"
@@ -27,13 +28,12 @@ class TurnController {
                              uint16_t delayMs, bool stopAtEnd = true, uint16_t timeoutMs = 10000);
 
     private:
-        static constexpr float maxOmega = 170.0f;        // deg/s (~3 rad/s)
+        static constexpr float maxOmega = cfg::TURN_MAX_OMEGA;
         // Minimum commanded rate outside the settle band: keeps wheel speeds
         // above static-friction breakaway so small turns can't stall short.
-        // If it hunts across the band, lower this; if it still stalls, raise.
-        static constexpr float minOmega = 68.0f;         // deg/s
-        static constexpr float settleTolerance = 0.5f;   // deg
-        static constexpr int SETTLE_CYCLES = 10;         // consecutive in-tolerance updates
+        static constexpr float minOmega = cfg::TURN_MIN_OMEGA;
+        static constexpr float settleTolerance = cfg::TURN_SETTLE_TOLERANCE;
+        static constexpr int SETTLE_CYCLES = cfg::TURN_SETTLE_CYCLES;
 
         MotorController& LeftMotor;
         MotorController& RightMotor;

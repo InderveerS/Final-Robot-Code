@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include "config.hpp"
 #include "motorController.hpp"
 #include "imu.hpp"
 #include "stopReason.hpp"
@@ -31,16 +32,14 @@ class DistanceController {
                              uint16_t delayMs, bool stopAtEnd = true, uint16_t timeoutMs = 10000);
 
     private:
-        static constexpr float velMax = 0.5f;            // m/s
-        static constexpr float velMin = -0.5f;           // m/s
+        static constexpr float velMax = cfg::DIST_VEL_MAX;
+        static constexpr float velMin = cfg::DIST_VEL_MIN;
         // Minimum commanded speed outside the settle band: keeps the wheels
-        // above static-friction breakaway so moves can't stall short of the
-        // target (same idea as TurnController::minOmega, 45 deg/s ~ 0.10 m/s).
-        // If it hunts across the band, lower this; if it still stalls, raise.
-        static constexpr float minVel = 0.10f;           // m/s
-        static constexpr float maxHeadingOmega = 85.0f;  // deg/s (~1.5 rad/s), keeps correction gentle
-        static constexpr float settleTolerance = 0.01f;  // m
-        static constexpr int SETTLE_CYCLES = 10;         // consecutive in-tolerance updates
+        // above static-friction breakaway so moves can't stall short of target.
+        static constexpr float minVel = cfg::DIST_MIN_VEL;
+        static constexpr float maxHeadingOmega = cfg::DIST_MAX_HEADING_OMEGA;
+        static constexpr float settleTolerance = cfg::DIST_SETTLE_TOLERANCE;
+        static constexpr int SETTLE_CYCLES = cfg::DIST_SETTLE_CYCLES;
 
         MotorController& LeftMotor;
         MotorController& RightMotor;

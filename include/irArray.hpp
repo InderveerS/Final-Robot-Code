@@ -1,15 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include "driver/adc.h"
-
-#define FAR_LEFT_CH ADC1_CHANNEL_0 
-#define LEFT_CH ADC1_CHANNEL_3
-#define CENTER_CH ADC1_CHANNEL_2
-#define RIGHT_CH ADC1_CHANNEL_1
-#define FAR_RIGHT_CH ADC1_CHANNEL_4
-
-#define LINE_PRESENT_THRESHOLD 220 // TODO: tune this for line detection
-#define MAX_ERROR 21 // TODO: tune this for line following
+#include "config.hpp"
 
 class IRArray {
     public: 
@@ -36,7 +28,7 @@ class IRArray {
         void calibrateFarLeft();
         void calibrateFarRight();
     private:
-        const float width = 10.0f; // width between sensors in mm
+        const float width = cfg::IR_SENSOR_WIDTH_MM;
         uint16_t normalize(uint16_t value, uint16_t min, uint16_t max);
 
         // MinL: 179, MaxL: 3475, MinC: 181, MaxC: 3771, MinR: 204, MaxR: 3983

@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <stdint.h>
 #include "driver/pcnt.h"
+#include "config.hpp"
 
 // Wraps one PCNT unit configured for x4 quadrature decoding of a single
 // encoder. Provides a 32-bit absolute tick count (extended beyond the

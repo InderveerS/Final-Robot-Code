@@ -41,52 +41,39 @@ Motor::Motor(uint8_t mPin1, uint8_t mPin2, bool mInverted, mcpwm_unit_t mcpwmUni
     mcpwm_init(mcpwmUnit, mcpwmTimer, &pwm_config);
 }
 
-void Motor :: stop() {
+void Motor::stop() {
     mcpwm_set_duty(mcpwmUnit, mcpwmTimer, MCPWM_OPR_A, 0.0);
     mcpwm_set_duty(mcpwmUnit, mcpwmTimer, MCPWM_OPR_B, 0.0);
 }
 
 void Motor::setPWMPercent(int8_t percent) {
-    // Clamp the value
     if(percent > 100) percent = 100;
     if(percent < -100) percent = -100;
 
-    // Handle robot chassis inversion
     if (mInverted) {
         percent = -percent;
     }
 
     float active_duty = abs(percent);
-
-    // 1 (Forward), -1 (Reverse), 0 (Stop)
     int8_t current_dir = (percent > 0) ? 1 : ((percent < 0) ? -1 : 0);
 
-    // SOFTWARE DEAD-TIME INJECTION
-    // Triggered only when flipping between Forward and Reverse
+    // Software dead-time: when flipping forward<->reverse, force both pins LOW
+    // and hold so the MOSFET gates discharge before the other side turns on -
+    // prevents shoot-through.
     if (current_dir != last_dir && last_dir != 0 && current_dir != 0) {
-        
-        // Force both pins LOW (Turns off all MOSFETs to prevent shoot-through)
         mcpwm_set_duty(mcpwmUnit, mcpwmTimer, MCPWM_OPR_A, 0.0);
         mcpwm_set_duty(mcpwmUnit, mcpwmTimer, MCPWM_OPR_B, 0.0);
-        
-        // Hold for 500 microseconds to let the MOSFET gates fully discharge
-        delayMicroseconds(500); // TODO: DOUBLE CHECK THIS IN CLASS BEFORE USING
+        delayMicroseconds(cfg::MOTOR_DEADTIME_US);
     }
     last_dir = current_dir;
 
-    // Apply the driving logic
     if (percent > 0) {
-        // Forward: Hold PWM1 LOW, pulse PWM0
         mcpwm_set_duty(mcpwmUnit, mcpwmTimer, MCPWM_OPR_B, 0.0);
         mcpwm_set_duty(mcpwmUnit, mcpwmTimer, MCPWM_OPR_A, active_duty);
-        
     } else if (percent < 0) {
-        // Reverse: Hold PWM0 LOW, pulse PWM1
         mcpwm_set_duty(mcpwmUnit, mcpwmTimer, MCPWM_OPR_A, 0.0);
         mcpwm_set_duty(mcpwmUnit, mcpwmTimer, MCPWM_OPR_B, active_duty);
-        
     } else {
-        // Coast: Hold both pins LOW
         mcpwm_set_duty(mcpwmUnit, mcpwmTimer, MCPWM_OPR_A, 0.0);
         mcpwm_set_duty(mcpwmUnit, mcpwmTimer, MCPWM_OPR_B, 0.0);
     }

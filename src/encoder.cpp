@@ -31,7 +31,7 @@ void Encoder::begin() {
     // chanB.hctrl_mode = PCNT_MODE_REVERSE;
     pcnt_unit_config(&chanB);
 
-    pcnt_set_filter_value(mUnit, 250); // TODO: tune this for encoder
+    pcnt_set_filter_value(mUnit, cfg::ENCODER_FILTER);
     pcnt_filter_enable(mUnit);
 
     // Interrupt only when the 16-bit hardware register itself wraps around -
@@ -54,8 +54,6 @@ void Encoder::begin() {
 
     gpio_pullup_en((gpio_num_t)mPinA);
     gpio_pullup_en((gpio_num_t)mPinB);
-
-    portMUX_TYPE mMux = portMUX_INITIALIZER_UNLOCKED;
 }
 
 void IRAM_ATTR Encoder::onOverflow(void* arg) {

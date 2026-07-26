@@ -1,0 +1,51 @@
+#include "robot.hpp"
+
+MotorController leftMotor(cfg::LEFT_MOTOR_PIN1, cfg::LEFT_MOTOR_PIN2, cfg::LEFT_MOTOR_INVERTED,
+    cfg::LEFT_MCPWM_UNIT, cfg::LEFT_MCPWM_TIMER, cfg::LEFT_ENCODER_PIN1, cfg::LEFT_ENCODER_PIN2,
+    cfg::LEFT_PCNT_UNIT, cfg::MOTOR_KP, cfg::MOTOR_KI, cfg::MOTOR_KD, cfg::CONTROL_DT, cfg::MOTOR_ALPHA);
+
+MotorController rightMotor(cfg::RIGHT_MOTOR_PIN1, cfg::RIGHT_MOTOR_PIN2, cfg::RIGHT_MOTOR_INVERTED,
+    cfg::RIGHT_MCPWM_UNIT, cfg::RIGHT_MCPWM_TIMER, cfg::RIGHT_ENCODER_PIN1, cfg::RIGHT_ENCODER_PIN2,
+    cfg::RIGHT_PCNT_UNIT, cfg::MOTOR_KP, cfg::MOTOR_KI, cfg::MOTOR_KD, cfg::CONTROL_DT, cfg::MOTOR_ALPHA);
+
+Imu robotImu;
+IRArray irArray;
+
+ServoMotor frontClaw(cfg::FRONT_CLAW_PIN, cfg::FRONT_CLAW_MIN_ANGLE, cfg::FRONT_CLAW_MAX_ANGLE);
+
+Switch backRightSwitch(cfg::BACK_RIGHT_SWITCH_PIN);
+Switch backLeftSwitch(cfg::BACK_LEFT_SWITCH_PIN);
+
+LineController lineController(leftMotor, rightMotor, irArray,
+    cfg::LINE_KP, cfg::LINE_KI, cfg::LINE_KD, cfg::CONTROL_DT, cfg::LINE_ALPHA);
+
+DistanceController distanceController(leftMotor, rightMotor, robotImu,
+    cfg::DIST_KP, cfg::DIST_KI, cfg::DIST_KD, cfg::DIST_HKP, cfg::DIST_HKI, cfg::DIST_HKD,
+    cfg::CONTROL_DT, cfg::DIST_ALPHA);
+
+TurnController turnController(leftMotor, rightMotor, robotImu,
+    cfg::TURN_KP, cfg::TURN_KI, cfg::TURN_KD, cfg::CONTROL_DT, cfg::TURN_ALPHA);
+
+void robotBegin() {
+    Serial.begin(115200);
+    frontClaw.begin();
+
+    if (!robotImu.begin()) {
+        Serial.println("No BNO055 detected");
+        while (1) { delay(1000); } // do not drive without a heading reference
+    }
+
+    delay(5000); // let the BNO055 gyro self-calibrate: keep the robot still
+
+    leftMotor.resetPID();
+    rightMotor.resetPID();
+}
+
+void imuTask(void* pvParameters) {
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xFrequency = pdMS_TO_TICKS(cfg::CONTROL_PERIOD_MS);
+    for (;;) {
+        robotImu.update();
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+}

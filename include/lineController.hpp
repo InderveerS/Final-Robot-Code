@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include "config.hpp"
 #include "motorController.hpp"
 #include "irArray.hpp"
 #include "stopReason.hpp"
@@ -24,21 +25,14 @@ class LineController {
         MotorController& RightMotor;
         IRArray& irArray;
 
-        static constexpr float target = 0.0f;
-        static constexpr float maxCorrection = 5.263394f;
-        static constexpr float wheelbase = 0.254f;
-        static constexpr float baseVel = 0.42f;
-        static constexpr float VEL_CHANGE_CONST = 1.2f; // Adjust this constant to control how much the base velocity changes with angular velocity
+        static constexpr float target = cfg::LINE_TARGET;
+        static constexpr float maxCorrection = cfg::LINE_MAX_CORRECTION;
+        static constexpr float baseVel = cfg::LINE_BASE_VEL;
+        static constexpr float VEL_CHANGE_CONST = cfg::LINE_VEL_CHANGE_CONST;
 
         float realVel = 0.0f;
 
         PID linePID;
 
-        float kp;
-        float ki;
-        float kd;
-        float dt;
-        float alpha;
-
         volatile float omega = 0.0f; // angular velocity in rad/s
-};    
+};
