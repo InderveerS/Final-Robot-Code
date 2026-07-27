@@ -25,12 +25,20 @@ void ServoMotor::write(int angle) {
     servo.write(mLastAngle);
 }
 
-void ServoMotor::open() {
-    write(mMaxAngle);
+void ServoMotor::open(uint8_t stepDelayMs) {
+    while (mLastAngle < mMaxAngle) {
+        mLastAngle++;
+        servo.write(mLastAngle);
+        vTaskDelay(pdMS_TO_TICKS(stepDelayMs));
+    }
 }
 
-void ServoMotor::close() {
-    write(mMinAngle);
+void ServoMotor::close(uint8_t stepDelayMs) {
+    while (mLastAngle > mMinAngle) {
+        mLastAngle--;
+        servo.write(mLastAngle);
+        vTaskDelay(pdMS_TO_TICKS(stepDelayMs));
+    }
 }
 
 void ServoMotor::writeMicroseconds(int us) {

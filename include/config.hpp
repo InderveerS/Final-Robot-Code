@@ -124,4 +124,9 @@ constexpr float TURN_MIN_OMEGA = 70.0f;        // deg/s breakaway floor
 constexpr float TURN_SETTLE_TOLERANCE = 0.5f;  // deg
 constexpr int TURN_SETTLE_CYCLES = 10;
 
+// ---- User Input Module ----
+constexpr uint8_t USER_INPUT_RAW = 10;
+constexpr uint8_t TELETUBBY_LED = 11;
+constexpr uint8_t TELETUBBY_SPEAKER = 12;
+
 } // namespace cfg
