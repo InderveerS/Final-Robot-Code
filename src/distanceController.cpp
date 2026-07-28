@@ -1,4 +1,5 @@
 #include "distanceController.hpp"
+#include "telemetry.hpp"
 
 DistanceController::DistanceController(MotorController& leftMotor, MotorController& rightMotor, Imu& imu,
     float kp, float ki, float kd, float hKp, float hKi, float hKd, float dt, float alpha)
@@ -55,7 +56,8 @@ void DistanceController::update() {
     }
 }
 
-void DistanceController::move(float targetDistance, uint16_t delayMs, uint16_t timeoutMs) {
+void DistanceController::move(float targetDistance, uint16_t timeoutMs, uint16_t delayMs) {
+    telemetry::setActivity("MOVE", targetDistance, false, nullptr);
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(delayMs);
     const TickType_t deadline = xLastWakeTime + pdMS_TO_TICKS(timeoutMs);
@@ -74,10 +76,13 @@ void DistanceController::move(float targetDistance, uint16_t delayMs, uint16_t t
 }
 
 StopReason DistanceController::moveUntil(float velocity, bool (*event)(), float maxDistance,
-                                        uint16_t delayMs, bool stopAtEnd, uint16_t timeoutMs) {
+                                        uint16_t confirmCycles,
+                                        bool stopAtEnd, uint16_t timeoutMs, uint16_t delayMs) {
+    telemetry::setActivity("MOVE_UNTIL", maxDistance, event != nullptr, event);
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(delayMs);
     const TickType_t deadline = xLastWakeTime + pdMS_TO_TICKS(timeoutMs);
+    EventDebounce trigger(confirmCycles);
 
     LeftMotor.encoder.startDistance();
     RightMotor.encoder.startDistance();
@@ -95,7 +100,7 @@ StopReason DistanceController::moveUntil(float velocity, bool (*event)(), float 
         LeftMotor.setTargetVelocity(velocity - halfV);
         RightMotor.setTargetVelocity(velocity + halfV);
 
-        if (event != nullptr && event()) { reason = StopReason::Event; break; }
+        if (trigger.poll(event)) { reason = StopReason::Event; break; }
 
         float avgDist = (LeftMotor.encoder.getDistance() + RightMotor.encoder.getDistance()) / 2.0f;
         if (maxDistance > 0.0f && fabsf(avgDist) >= maxDistance) { reason = StopReason::Limit; break; }

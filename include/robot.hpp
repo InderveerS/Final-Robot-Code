@@ -8,6 +8,7 @@
 #include "irArray.hpp"
 #include "servo.hpp"
 #include "switch.hpp"
+#include "communicator.hpp"
 
 // Global hardware + controller instances (defined in robot.cpp).
 extern MotorController leftMotor;
@@ -15,11 +16,13 @@ extern MotorController rightMotor;
 extern Imu robotImu;
 extern IRArray irArray;
 extern ServoMotor frontClaw;
+extern ServoMotor rearClaw;
 extern Switch backRightSwitch;
 extern Switch backLeftSwitch;
 extern LineController lineController;
 extern DistanceController distanceController;
 extern TurnController turnController;
+extern Communicator robotCommunicator;
 
 // Hardware bring-up: Serial, servo, IMU (halts on failure), gyro-settle delay,
 // motor PID reset. Call once from setup().

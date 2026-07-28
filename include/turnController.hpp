@@ -4,6 +4,7 @@
 #include "motorController.hpp"
 #include "imu.hpp"
 #include "stopReason.hpp"
+#include "eventDebounce.hpp"
 
 class TurnController {
     public:
@@ -13,19 +14,25 @@ class TurnController {
         void turnBy(float deltaDeg);      // relative turn, can exceed 180 deg
         void update();                    // call at 100 Hz while turning
         bool isSettled() const { return mSettledCount >= SETTLE_CYCLES; }
-        // Blocking: turns deltaDeg then returns. Gives up after timeoutMs so a
-        // turn that can never settle can't hang the mission.
-        void turn(float deltaDeg, uint16_t delayMs, uint16_t timeoutMs = 5000);
+        float getTargetHeading() const { return mTargetHeading; }
+        // Blocking: turns to the absolute heading absHeadingDeg (shortest path)
+        // then returns. Gives up after timeoutMs so a turn that can never settle
+        // can't hang the mission.
+        void turn(float absHeadingDeg, uint16_t timeoutMs = 5000, uint16_t delayMs = cfg::CONTROL_PERIOD_MS);
 
         // Blocking: spins in place at a CONSTANT rate (independent of the
         // turn-PID clamp) until the event fires OR maxAngle (deg turned from
         // the start heading) is reached. Returns why.
-        //   omegaDps   : deg/s, signed (positive = CCW); the search rate
-        //   event      : predicate polled each cycle; nullptr disables it
-        //   maxAngle   : <= 0 disables the angle backstop
-        //   stopAtEnd  : true stops the motors on exit, false coasts
+        //   omegaDps      : deg/s, signed (positive = CCW); the search rate
+        //   event         : predicate polled each cycle; nullptr disables it
+        //   maxAngle      : <= 0 disables the angle backstop
+        //   confirmCycles : consecutive true samples needed before the event
+        //                   counts. 1 = fire on the first true (original
+        //                   behaviour). Raise it to reject IR/switch noise.
+        //   stopAtEnd     : true stops the motors on exit, false coasts
         StopReason turnUntil(float omegaDps, bool (*event)(), float maxAngle,
-                             uint16_t delayMs, bool stopAtEnd = true, uint16_t timeoutMs = 10000);
+                             uint16_t confirmCycles = 1,
+                             bool stopAtEnd = true, uint16_t timeoutMs = 10000, uint16_t delayMs = cfg::CONTROL_PERIOD_MS);
 
     private:
         static constexpr float maxOmega = cfg::TURN_MAX_OMEGA;

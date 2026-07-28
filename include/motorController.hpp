@@ -26,7 +26,11 @@ class MotorController {
 
         void setTargetVelocity(float target);
 
+        // Telemetry accessors (last values from the most recent setTargetVelocity).
         float getLastMeasuredVelocity() const { return mLastVelocity; }
+        float getTargetVelocity() const { return mRampedTarget; }
+        float getLastOutput() const { return mLastOutput; }  // velocity PID output
+        int getLastPwm() const { return mLastPwm; }           // final duty commanded
 
         void resetPID() {
             pid.reset();
@@ -38,6 +42,8 @@ class MotorController {
     private:
         float mLastVelocity = 0.0f;
         float mRampedTarget = 0.0f;
+        float mLastOutput = 0.0f;
+        int8_t mLastPwm = 0;
 
         PID pid;
 };

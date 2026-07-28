@@ -17,6 +17,7 @@ void MotorController::setTargetVelocity(float target) {
     mLastVelocity = velocity;
     float error = mRampedTarget - velocity;
     float output = pid.update(error);
+    mLastOutput = output;
 
     // Affine feedforward with deadband, applied in the direction of travel.
     float feedforward = 0.0f;
@@ -24,5 +25,6 @@ void MotorController::setTargetVelocity(float target) {
     else if (mRampedTarget < -FF_VEL_THRESHOLD) feedforward = -FF_DEADBAND + FF_SLOPE * mRampedTarget;
 
     float final_pwm = constrain(feedforward + output, OUT_MIN, OUT_MAX);
-    motor.setPWMPercent(static_cast<int8_t>(roundf(final_pwm)));
+    mLastPwm = static_cast<int8_t>(roundf(final_pwm));
+    motor.setPWMPercent(mLastPwm);
 }

@@ -31,10 +31,16 @@ void IRArray::calibrateMiddle() {
     if (r < minR) minR = r;  if (r > maxR) maxR = r;
 }
 
+uint16_t IRArray::readMiddle(uint16_t& left, uint16_t& center, uint16_t& right) {
+    left   = normalize(adc1_get_raw(cfg::IR_LEFT_CH), minL, maxL);
+    center = normalize(adc1_get_raw(cfg::IR_CENTER_CH), minC, maxC);
+    right  = normalize(adc1_get_raw(cfg::IR_RIGHT_CH), minR, maxR);
+    return left + center + right;
+}
+
 uint16_t IRArray::getTotal() {
-     return normalize(adc1_get_raw(cfg::IR_LEFT_CH), minL, maxL) +
-     normalize(adc1_get_raw(cfg::IR_CENTER_CH), minC, maxC) +
-     normalize(adc1_get_raw(cfg::IR_RIGHT_CH), minR, maxR);
+    uint16_t l, c, r;
+    return readMiddle(l, c, r);
 }
 
 float IRArray::readLine() {

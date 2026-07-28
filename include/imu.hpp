@@ -35,6 +35,17 @@ class Imu {
         float getRoll() const { return mRoll; }   // BNO055 Euler y
         float getPitch() const { return mPitch; } // BNO055 Euler z
 
+        // Diagnostics: the internals behind the hybrid heading, so a log can
+        // tell "the turn controller missed" apart from "getHeading() lied".
+        // All cached from the last update() - no I2C, safe from any task.
+        // getRawEuler() is the chip's own ABSOLUTE fused heading, not zeroed at
+        // boot like getHeading(), so compare their per-sample DELTAS, not their
+        // values: if heading moves further than the Euler over a turn, the gyro
+        // path (IMU_GYRO_SCALE) is over-counting, and vice versa.
+        float getRawEuler() const { return mLastEuler; } // fused Euler heading (deg, CCW+)
+        float getRate() const { return mLastRate; }      // bias-corrected gyro-z (deg/s)
+        bool isUsingGyro() const { return mUsingGyro; }  // last update integrated raw gyro?
+
         static float wrapTo180(float angle); // wrap into [-180, 180] degrees
 
     private:
@@ -48,5 +59,6 @@ class Imu {
         float mLastEuler = 0.0f; // previous fused Euler heading (deg, CCW+)
         uint32_t mLastMicros = 0;
         uint32_t mLastFastMicros = 0; // last time |rate| exceeded the handoff
+        bool mUsingGyro = false;      // which path the last update() took
         bool mFirstRead = true;
 };

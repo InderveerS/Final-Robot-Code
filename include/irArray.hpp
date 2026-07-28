@@ -22,6 +22,13 @@ class IRArray {
         uint16_t getMinFR() const { return minFR; }
         uint16_t getMaxFR() const { return maxFR; }
 
+        // Reads the three middle sensors and hands back their NORMALIZED
+        // (0-1000) values; returns their sum, i.e. exactly what getTotal()
+        // reports and what LINE_PRESENT_THRESHOLD gates on. Use this instead of
+        // getTotal() when you also want the individual sensors - it is the same
+        // three ADC conversions either way.
+        uint16_t readMiddle(uint16_t& left, uint16_t& center, uint16_t& right);
+
         uint16_t getTotal();
 
         void calibrateMiddle();
@@ -38,13 +45,15 @@ class IRArray {
         // MinL: 185, MaxL: 3209, MinC: 158, MaxC: 1979, MinR: 191, MaxR: 3037
         // MinL: 200, MaxL: 2855, MinC: 191, MaxC: 2923, MinR: 203, MaxR: 2839
         // MinL: 217, MaxL: 3391, MinC: 201, MaxC: 2724, MinR: 201, MaxR: 3303
-        uint16_t minL = 217, maxL = 3391;
-        uint16_t minC = 201, maxC = 2724;
-        uint16_t minR = 201, maxR = 3303;
+        // MinL: 216, MaxL: 3437, MinC: 183, MaxC: 2870, MinR: 201, MaxR: 3465
+        uint16_t minL = 216, maxL = 3437;
+        uint16_t minC = 183, maxC = 2870;
+        uint16_t minR = 201, maxR = 3465;
 
         // MinFR: 1235, MaxFR: 3877, MinFL: 267, MaxFL: 3271
-        uint16_t minFL = 267, maxFL = 3271;
-        uint16_t minFR = 1235, maxFR = 3877;
+        // MinFR: 263, MaxFR: 3365, MinFL: 279, MaxFL: 3801
+        uint16_t minFL = 279, maxFL = 3801;
+        uint16_t minFR = 263, maxFR = 3365;
 
         int8_t lastDirection = 0; // -1 for left, 1 for right, 0 for center
 };    

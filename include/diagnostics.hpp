@@ -26,6 +26,9 @@ void navTask(void* pvParameters);
 // Motor feedforward calibration: steps duty 0..100, prints "duty, vL, vR".
 void dutySweepTask(void* pvParameters);
 
+// UART comms with ESPCAM for SD logging (ESPCAM has SD port)
+void espLoggingTask(void* pvParameters);
+
 // loop() helpers (stream over Serial; those reading IMU need imuTask running).
 void csvLogLoop();             // time_ms, heading_deg, dist_m, settled
 void velocityLogLoop();        // drives a fixed duty, prints measured L,R velocity

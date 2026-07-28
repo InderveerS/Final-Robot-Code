@@ -1,4 +1,5 @@
 #include "turnController.hpp"
+#include "telemetry.hpp"
 
 TurnController::TurnController(MotorController& leftMotor, MotorController& rightMotor, Imu& imu, float kp, float ki, float kd, float dt, float alpha) :
     LeftMotor(leftMotor), RightMotor(rightMotor), imu(imu), anglePID(kp, ki, kd, dt, -maxOmega, maxOmega, alpha, 0.0f)
@@ -46,12 +47,13 @@ void TurnController::update() {
     }
 }
 
-void TurnController::turn(float Deg, uint16_t delayMs, uint16_t timeoutMs) {
+void TurnController::turn(float absHeadingDeg, uint16_t timeoutMs, uint16_t delayMs) {
+    telemetry::setActivity("TURN", absHeadingDeg, false, nullptr);
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(delayMs);
     const TickType_t deadline = xLastWakeTime + pdMS_TO_TICKS(timeoutMs);
-    
-    turnTo(Deg);
+
+    turnTo(absHeadingDeg);
     // Block until settled or the deadline passes. The signed tick difference
     // handles the (rare) tick-counter wraparound correctly.
     while (!isSettled() && (int32_t)(deadline - xTaskGetTickCount()) > 0) {
@@ -65,10 +67,13 @@ void TurnController::turn(float Deg, uint16_t delayMs, uint16_t timeoutMs) {
 }
 
 StopReason TurnController::turnUntil(float omegaDps, bool (*event)(), float maxAngle,
-                                     uint16_t delayMs, bool stopAtEnd, uint16_t timeoutMs) {
+                                     uint16_t confirmCycles,
+                                     bool stopAtEnd, uint16_t timeoutMs, uint16_t delayMs) {
+    telemetry::setActivity("TURN_UNTIL", maxAngle, event != nullptr, event);
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(delayMs);
     const TickType_t deadline = xLastWakeTime + pdMS_TO_TICKS(timeoutMs);
+    EventDebounce trigger(confirmCycles);
 
     float startHeading = imu.getHeading();
     // Constant angular rate (NOT the turn PID): fixed differential from omegaDps.
@@ -80,7 +85,7 @@ StopReason TurnController::turnUntil(float omegaDps, bool (*event)(), float maxA
         LeftMotor.setTargetVelocity(-halfV);
         RightMotor.setTargetVelocity(halfV);
 
-        if (event != nullptr && event()) { reason = StopReason::Event; break; }
+        if (trigger.poll(event)) { reason = StopReason::Event; break; }
 
         if (maxAngle > 0.0f && fabsf(imu.getHeading() - startHeading) >= maxAngle) {
             reason = StopReason::Limit; break;
