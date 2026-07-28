@@ -1,8 +1,10 @@
 #include "diagnostics.hpp"
 #include "robot.hpp"
+#include "telemetry.hpp"
+#include "mission.hpp"
 
 // Targets for the single-primitive step-response tests.
-static const float TEST_TURN_DEG = -15.0f; // + is CCW
+static const float TEST_TURN_DEG = -10.0f; // + is CCW
 static const float TEST_DIST_M = 0.15f;    // + is forward
 
 // Old square dead-reckoning test.
@@ -128,6 +130,71 @@ void dutySweepTask(void* pvParameters) {
     leftMotor.motor.setPWMPercent(0);
     rightMotor.motor.setPWMPercent(0);
     for (;;) vTaskDelay(pdMS_TO_TICKS(100));
+}
+
+// logging task
+void espLoggingTask(void* pvParameters) {
+    // CSV header. Column notes:
+    //   euler/rate/gyro - IMU internals. heading is the accumulated estimate;
+    //     euler is the chip's absolute fused heading and gyro flags which path
+    //     built this sample. Compare heading's delta to euler's across a turn
+    //     to see whether the ESTIMATE drifted rather than the controller.
+    //   FL/FR/L/C/R     - normalized IR (0-1000), read fresh here. FL/FR are
+    //     what lineBL/lineBR compare against 400; L+C+R is what lineF compares
+    //     against LINE_PRESENT_THRESHOLD, and the three separately show which
+    //     sensor actually holds the line. Without these an event fires in the
+    //     log with no evidence of why. (The old lineTot column is just L+C+R.)
+    //   turnTarget      - set by turn() ONLY. turnUntil() is rate-based and
+    //     leaves it alone, so during a *_UNTIL activity it is STALE from the
+    //     previous turn(). Do not read it as that section's goal.
+    //   seq             - row counter, never reset. This is what tells a row the
+    //     ROBOT never sent apart from one the link dropped: contiguous seq with
+    //     a jump in t means this task missed its slot (it is the lowest-priority
+    //     task on core 0, behind the 100 Hz imuTask); a gap in seq means the row
+    //     went out and was lost downstream. Without it the two are identical in
+    //     the log.
+    vTaskDelay(pdMS_TO_TICKS(200)); // let the ESP-CAM boot and open its SD file
+
+    static const char* HEADER = "t,seq,heading,euler,rate,gyro,roll,dist,distTarget,linePos,FL,FR,L,C,R,turnTarget,Lt,Lm,Lout,Lpwm,Rt,Rm,Rout,Rpwm,step,activity,goal,event";
+    robotCommunicator.send(HEADER);
+    // Give the ESP-CAM time to open its SD file. Keep this SHORT: missionTask
+    // starts driving 200 ms after boot, so anything longer silently drops the
+    // opening moves of the run from the log.
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    uint32_t seq = 0;
+    for (;;) {
+        if (cfg::TELEMETRY_HEADER_EVERY && seq && seq % cfg::TELEMETRY_HEADER_EVERY == 0) {
+            robotCommunicator.send(HEADER);
+        }
+
+        // Read the ADC outside the varargs call (argument evaluation order is
+        // unspecified, and it keeps the sensor access obvious). These are the
+        // only ADC reads outside the control tasks; adc1_get_raw locks, and
+        // readFarLeft/Right are side-effect free, unlike readLine().
+        unsigned fl = (unsigned)irArray.readFarLeft();
+        unsigned fr = (unsigned)irArray.readFarRight();
+        uint16_t l, c, r;
+        irArray.readMiddle(l, c, r); // same three ADC reads getTotal() did
+
+        robotCommunicator.sendf(
+            "%lu,%lu,%.1f,%.1f,%.1f,%d,%.1f,%.3f,%.3f,%.3f,%u,%u,%u,%u,%u,%.1f,%.3f,%.3f,%.3f,%d,%.3f,%.3f,%.3f,%d,%d,%s,%.2f,%s",
+            millis(), seq,
+            robotImu.getHeading(), robotImu.getRawEuler(), robotImu.getRate(),
+            (int)robotImu.isUsingGyro(), robotImu.getRoll(),
+            distanceController.getDistance(), distanceController.getTargetDistance(),
+            lineController.getLinePosition(),
+            fl, fr, (unsigned)l, (unsigned)c, (unsigned)r,
+            turnController.getTargetHeading(),
+            leftMotor.getTargetVelocity(), leftMotor.getLastMeasuredVelocity(),
+            leftMotor.getLastOutput(), leftMotor.getLastPwm(),
+            rightMotor.getTargetVelocity(), rightMotor.getLastMeasuredVelocity(),
+            rightMotor.getLastOutput(), rightMotor.getLastPwm(),
+            telemetry::step, (const char*)telemetry::activity, telemetry::goal,
+            eventName((telemetry::EventFn)telemetry::eventPtr));
+        seq++;
+        vTaskDelay(pdMS_TO_TICKS(cfg::TELEMETRY_PERIOD_MS));
+    }
 }
 
 void csvLogLoop() {

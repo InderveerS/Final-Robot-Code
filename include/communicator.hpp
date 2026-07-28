@@ -24,10 +24,17 @@ class Communicator {
         void send(const char* msg);
         void send(const String& msg) { send(msg.c_str()); }
 
-        // Non-blocking: reads all available bytes into the line buffer. Returns
-        // true when a COMPLETE new message just finished this call. Call often
-        // (e.g. every control cycle). If several lines arrive between polls,
-        // only the newest is kept - poll fast enough if you can't miss any.
+        // printf-style send: formats into a fixed buffer, then send(). Do NOT
+        // put a trailing '\n' in fmt - send() adds it. Returns false and sends
+        // NOTHING if the formatted message would exceed BUF_SIZE-1 chars, so a
+        // truncated half-line never goes out looking complete. The format
+        // attribute makes the compiler check the args against fmt (like printf).
+        bool sendf(const char* fmt, ...) __attribute__((format(printf, 2, 3)));
+
+        // Non-blocking: reads buffered bytes and returns true as soon as ONE
+        // complete message is ready, leaving anything after it untouched for
+        // the next call. Call in a loop - `while (comm.poll()) { ... }` - or
+        // you will fall behind a fast sender by exactly the lines you skip.
         bool poll();
 
         // Valid after poll() returns true: the most recent complete message,
@@ -40,8 +47,14 @@ class Communicator {
         uint8_t mTxPin;
         uint32_t mBaud;
 
-        static constexpr size_t BUF_SIZE = 128;
+        static constexpr size_t BUF_SIZE = 256; // holds the full telemetry line
+        // A partial line idle longer than this is noise, not a line: a full row
+        // transmits in ~6 ms, so any gap this large mid-line means the sender
+        // was not actually mid-line. See poll().
+        static constexpr uint32_t STALE_LINE_MS = 100;
+
         char mBuffer[BUF_SIZE]; // line being assembled
         size_t mLen = 0;
+        uint32_t mLastByteMs = 0; // when the last byte landed in mBuffer
         char mMessage[BUF_SIZE] = {0}; // last complete line
 };

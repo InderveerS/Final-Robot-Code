@@ -1,4 +1,5 @@
 #pragma once
+#include <Arduino.h> // HardwareSerial, Serial1
 #include <stdint.h>
 #include "driver/adc.h"
 #include "driver/mcpwm.h"
@@ -12,6 +13,15 @@ namespace cfg {
 // ---- Timing ----
 constexpr float CONTROL_DT = 0.01f;         // s, control-loop period
 constexpr uint16_t CONTROL_PERIOD_MS = 10;  // ms, blocking-primitive period
+// Telemetry row period. 40 ms = 25 Hz: enough to resolve every primitive, and
+// half the link load of 50 Hz. The receiver blocks for >100 ms on SD flushes,
+// so the slack here is what keeps rows from piling up behind those stalls.
+constexpr uint16_t TELEMETRY_PERIOD_MS = 40;
+// Re-send the CSV header every N rows (0 disables). Cheap insurance: if the
+// first copy is lost the column names still turn up later in the file. At 25 Hz
+// this is one extra line every ~20 s; filter with `grep -v '^t,'` if it bothers
+// an analysis script.
+constexpr uint32_t TELEMETRY_HEADER_EVERY = 500;
 
 // ---- Physical ----
 constexpr float WHEELBASE_M = 0.254f;
@@ -71,33 +81,44 @@ constexpr float IMU_FUSION_HANDOFF_DPS = 40.0f; // above this, integrate raw gyr
 constexpr uint16_t IMU_EULER_RESUME_MS = 500;   // gyro-path hold after a fast turn
 
 // ---- IR array ----
-constexpr adc1_channel_t IR_FAR_LEFT_CH = ADC1_CHANNEL_0;
+constexpr adc1_channel_t IR_FAR_LEFT_CH = ADC1_CHANNEL_4;
 constexpr adc1_channel_t IR_LEFT_CH = ADC1_CHANNEL_3;
 constexpr adc1_channel_t IR_CENTER_CH = ADC1_CHANNEL_2;
 constexpr adc1_channel_t IR_RIGHT_CH = ADC1_CHANNEL_1;
-constexpr adc1_channel_t IR_FAR_RIGHT_CH = ADC1_CHANNEL_4;
-constexpr uint16_t LINE_PRESENT_THRESHOLD = 250;
-constexpr int LINE_MAX_ERROR = 21;         // lost-line sentinel error
+constexpr adc1_channel_t IR_FAR_RIGHT_CH = ADC1_CHANNEL_0;
+constexpr uint16_t LINE_PRESENT_THRESHOLD = 600;
+constexpr int LINE_MAX_ERROR = 21;         // lost-line error
 constexpr float IR_SENSOR_WIDTH_MM = 10.0f; // spacing between sensors
 
 // ---- Servo (front claw) ----
-constexpr uint8_t FRONT_CLAW_PIN = 8;
+constexpr uint8_t FRONT_CLAW_PIN = 15;
 constexpr uint8_t FRONT_CLAW_MIN_ANGLE = 7;
 constexpr uint8_t FRONT_CLAW_MAX_ANGLE = 110;
+
+// ---- Servo (rear claw) ----
+constexpr uint8_t REAR_CLAW_PIN = 8; 
+constexpr uint8_t REAR_CLAW_MIN_ANGLE = 60;
+constexpr uint8_t REAR_CLAW_MAX_ANGLE = 80;
+
+// ---- ESP-CAM ----
+constexpr HardwareSerial* ESP_SERIAL = &Serial1; // pointer (a constexpr ref can't bind Serial1); deref at use
+constexpr uint8_t ESP_RX_PIN = 12; // 12 = 47
+constexpr uint8_t ESP_TX_PIN = 11; // 11 = 21
+constexpr uint32_t ESP_BAUD = 230400; // must match the ESP-CAM's UART baud
 
 // ---- Switches ----
 constexpr uint8_t BACK_RIGHT_SWITCH_PIN = 7;
 constexpr uint8_t BACK_LEFT_SWITCH_PIN = 6;
 
 // ---- Line controller ----
-constexpr float LINE_KP = 0.075f;
+constexpr float LINE_KP = 0.1f;
 constexpr float LINE_KI = 0.0f;
 constexpr float LINE_KD = 0.008f;
-constexpr float LINE_ALPHA = 0.4f;
+constexpr float LINE_ALPHA = 0.2f;
 constexpr float LINE_TARGET = 0.0f;
 constexpr float LINE_MAX_CORRECTION = 5.263394f; // omega clamp, rad/s
 constexpr float LINE_BASE_VEL = 0.42f;
-constexpr float LINE_VEL_CHANGE_CONST = 1.2f; // base-vel reduction vs |omega|
+constexpr float LINE_VEL_CHANGE_CONST = 1.3f; // base-vel reduction vs |omega|
 
 // ---- Distance controller ----
 constexpr float DIST_KP = 4.0f;
@@ -117,10 +138,10 @@ constexpr int DIST_SETTLE_CYCLES = 10;
 // ---- Turn controller ----
 constexpr float TURN_KP = 5.5f;
 constexpr float TURN_KI = 0.0f;
-constexpr float TURN_KD = 0.3f;
+constexpr float TURN_KD = 0.35f;
 constexpr float TURN_ALPHA = 0.25f;
 constexpr float TURN_MAX_OMEGA = 170.0f;       // deg/s
-constexpr float TURN_MIN_OMEGA = 70.0f;        // deg/s breakaway floor
+constexpr float TURN_MIN_OMEGA = 100.0f;        // deg/s breakaway floor
 constexpr float TURN_SETTLE_TOLERANCE = 0.5f;  // deg
 constexpr int TURN_SETTLE_CYCLES = 10;
 

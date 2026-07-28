@@ -17,6 +17,26 @@ void setup() {
     // ONE task from diagnostics.hpp here. The self-updating tests (turn/distance/
     // nav) must run WITHOUT the imuTask above. Pair a step-response test with
     // csvLogLoop() in loop(); the duty sweep and log helpers print themselves.
+
+    xTaskCreatePinnedToCore(espLoggingTask, "ESP Log", 4096, NULL, 1, NULL, 0);
+
+    // xTaskCreatePinnedToCore(turnTestTask, "Turn Test", 4096, NULL, 1, NULL, 1);
 }
 
-void loop() {}
+
+void loop() {
+    // csvLogLoop(); 
+    // lineSensorCalibrateLoop();
+    // farSensorCalibrateLoop();
+
+    // uint16_t l, c, r;
+    // irArray.readMiddle(l, c, r); // same three ADC reads getTotal() did
+
+    // Serial.print(l);
+    // Serial.print(", ");
+    // Serial.print(c);
+    // Serial.print(", ");
+    // Serial.println(r);  
+
+    // delay(20);
+}

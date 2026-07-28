@@ -12,6 +12,7 @@ Imu robotImu;
 IRArray irArray;
 
 ServoMotor frontClaw(cfg::FRONT_CLAW_PIN, cfg::FRONT_CLAW_MIN_ANGLE, cfg::FRONT_CLAW_MAX_ANGLE);
+ServoMotor rearClaw(cfg::REAR_CLAW_PIN, cfg::REAR_CLAW_MIN_ANGLE, cfg::REAR_CLAW_MAX_ANGLE);
 
 Switch backRightSwitch(cfg::BACK_RIGHT_SWITCH_PIN);
 Switch backLeftSwitch(cfg::BACK_LEFT_SWITCH_PIN);
@@ -26,9 +27,13 @@ DistanceController distanceController(leftMotor, rightMotor, robotImu,
 TurnController turnController(leftMotor, rightMotor, robotImu,
     cfg::TURN_KP, cfg::TURN_KI, cfg::TURN_KD, cfg::CONTROL_DT, cfg::TURN_ALPHA);
 
+Communicator robotCommunicator(*cfg::ESP_SERIAL, cfg::ESP_RX_PIN, cfg::ESP_TX_PIN, cfg::ESP_BAUD);
+
 void robotBegin() {
-    Serial.begin(115200);
+    Serial.begin(115200); // Not used in final robot, remove before comp
     frontClaw.begin();
+    rearClaw.begin();
+    robotCommunicator.begin();
 
     if (!robotImu.begin()) {
         Serial.println("No BNO055 detected");

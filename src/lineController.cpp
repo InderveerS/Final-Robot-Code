@@ -1,4 +1,5 @@
 #include "lineController.hpp"
+#include "telemetry.hpp"
 
 LineController::LineController(MotorController& leftMotor, MotorController& rightMotor, IRArray& irArray, float kp, float ki, float kd, float dt, float alpha) :
     LeftMotor(leftMotor), RightMotor(rightMotor), irArray(irArray), linePID(kp, ki, kd, dt, -maxCorrection, maxCorrection, alpha, 0.0f)
@@ -7,13 +8,14 @@ LineController::LineController(MotorController& leftMotor, MotorController& righ
 
 void LineController::updateLinePID() {
     float linePosition = irArray.readLine();
+    mLastLinePos = linePosition;
     float error = target - linePosition;
     omega = linePID.update(error);
 }
 
 void LineController::updateMotorPID() {
     // Scale base velocity down as the correction grows, so tight turns slow down.
-    realVel = baseVel * (1.0f - VEL_CHANGE_CONST * (fabs(omega) / maxCorrection));
+    realVel = mBaseVel * (1.0f - VEL_CHANGE_CONST * (fabs(omega) / maxCorrection));
 
     float leftVel = realVel - (omega * MotorController::WHEELBASE_M / 2.0f);
     float rightVel = realVel + (omega * MotorController::WHEELBASE_M / 2.0f);
@@ -22,11 +24,15 @@ void LineController::updateMotorPID() {
     RightMotor.setTargetVelocity(rightVel);
 }
 
-StopReason LineController::followUntil(bool (*event)(), float maxDistance, uint16_t delayMs,
-                                         bool stopAtEnd, uint16_t timeoutMs) {
+StopReason LineController::followUntil(bool (*event)(), float maxDistance,
+                                        uint16_t confirmCycles, float baseVel, bool stopAtEnd,
+                                        uint16_t timeoutMs, uint16_t delayMs) {
+    telemetry::setActivity("FOLLOW", maxDistance, event != nullptr, event);
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(delayMs);
     const TickType_t deadline = xLastWakeTime + pdMS_TO_TICKS(timeoutMs);
+    EventDebounce trigger(confirmCycles);
+    mBaseVel = baseVel; // set every call, so a previous call's speed can't leak in
 
     // Mark the distance reference (average encoder travel from here).
     LeftMotor.encoder.startDistance();
@@ -37,7 +43,7 @@ StopReason LineController::followUntil(bool (*event)(), float maxDistance, uint1
         updateLinePID();   // outer: sensor -> omega
         updateMotorPID();  // inner: omega -> wheel velocities
 
-        if (event != nullptr && event()) {
+        if (trigger.poll(event)) {
             reason = StopReason::Event;
             break;
         }

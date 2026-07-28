@@ -64,8 +64,10 @@ void Imu::update() {
     }
 
     // Gyro path while rotating fast AND for IMU_EULER_RESUME_MS afterwards, so
-    // the fusion's post-turn catch-up slew never enters the sum.
-    if (nowMicros - mLastFastMicros < (uint32_t)cfg::IMU_EULER_RESUME_MS * 1000) {
+    // the fusion's post-turn catch-up slew never enters the sum. The choice is
+    // recorded (isUsingGyro) so a log can attribute heading error to a path.
+    mUsingGyro = (nowMicros - mLastFastMicros < (uint32_t)cfg::IMU_EULER_RESUME_MS * 1000);
+    if (mUsingGyro) {
         // Fast rotation: fused output under-counts, integrate the raw rate.
         // dt is measured, not assumed, so scheduling jitter doesn't corrupt
         // the angle (unsigned subtraction is correct across the micros() wrap).
