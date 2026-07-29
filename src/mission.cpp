@@ -8,6 +8,7 @@ bool lineIsDetectedBR() { return ((float)irArray.readFarRight() >= 400.0f); }
 bool lineIsDetectedBL() { return ((float)irArray.readFarLeft() >= 400.0f); }
 bool backRightSwitchPressed() { return backRightSwitch.isPressed(); }
 bool backLeftSwitchPressed() { return backLeftSwitch.isPressed(); }
+bool eitherSwitchPressed() { return backRightSwitch.isPressed() || backLeftSwitch.isPressed(); };
 bool onFlatGround() { return robotImu.getRoll() > -3.0f; }
 bool atEnd() {return irArray.getTotal() > 2500; }
 bool eitherBackLine() { return lineIsDetectedBL() || lineIsDetectedBR(); }
@@ -36,56 +37,79 @@ void missionTask(void* pvParameters) {
 
     telemetry::nextStep();
     frontClaw.close();
-    lineController.followUntil(useless, 0.5f);
-    turnController.turn(-20.0f);
-    // look at telletubby 1
-    missionDelay(500);
+    rearClaw.open();
+    // lineController.followUntil(useless, 0.5f);
+    // turnController.turn(-20.0f);
+    // // look at telletubby 1
+    // missionDelay(500);
 
-    telemetry::nextStep();
-    turnController.turnUntil(140.0f, lineIsDetectedF, 35.0f);
-    lineController.followUntil(useless, 0.55f);
-    turnController.turn(15.0f);
-    // look at telletubby 2
-    missionDelay(500);
+    // telemetry::nextStep();
+    // turnController.turnUntil(140.0f, lineIsDetectedF, 35.0f);
+    // lineController.followUntil(useless, 0.55f);
+    // turnController.turn(15.0f);
+    // // look at telletubby 2
+    // missionDelay(500);
 
-    telemetry::nextStep();
-    turnController.turnUntil(-140.0f, lineIsDetectedF, 30.0f);
-    lineController.followUntil(useless, 0.45f);
-    turnController.turn(-5.0f);
-    // look at telletubby 3
-    missionDelay(500);
+    // telemetry::nextStep();
+    // turnController.turnUntil(-140.0f, lineIsDetectedF, 30.0f);
+    // lineController.followUntil(useless, 0.45f);
+    // turnController.turn(-5.0f);
+    // // look at telletubby 3
+    // missionDelay(500);
 
-    telemetry::nextStep();
-    turnController.turnUntil(140.0f, lineIsDetectedF, 35.0f);
-    lineController.followUntil(useless, 0.5f);
-    turnController.turn(70.0f);
-    // look at telletubby 4
-    missionDelay(500);
+    // telemetry::nextStep();
+    // turnController.turnUntil(140.0f, lineIsDetectedF, 35.0f);
+    // lineController.followUntil(useless, 0.5f);
+    // turnController.turn(70.0f);
+    // // look at telletubby 4
+    // missionDelay(500);
 
-    telemetry::nextStep();
-    distanceController.move(0.1f);
-    turnController.turn(150.0f);
-    distanceController.moveUntil(0.44f, useless, 0.3f, 1, false);
-    telemetry::nextStep();
-    distanceController.moveUntil(0.44f, lineIsDetectedF, 0.5f, 1, false);
-    lineController.followUntil(useless, 0.7f, 1, cfg::LINE_BASE_VEL, false);
-    lineController.followUntil(onFlatGround, 1.5f);
-    // look at telletubby 5
-    missionDelay(500);
+    // telemetry::nextStep();
+    // distanceController.move(0.1f);
+    // turnController.turn(150.0f);
+    // distanceController.moveUntil(0.44f, useless, 0.3f, 1, false);
+    // telemetry::nextStep();
+    // distanceController.moveUntil(0.44f, lineIsDetectedF, 0.5f, 1, false);
+    // lineController.followUntil(useless, 0.7f, 1, cfg::LINE_BASE_VEL, false);
+    // lineController.followUntil(onFlatGround, 1.5f);
+    // // look at telletubby 5
+    // missionDelay(500);
 
-    telemetry::nextStep();
-    lineController.followUntil(useless, 2.4f);
+    // telemetry::nextStep();
+    // lineController.followUntil(useless, 2.4f);
     lineController.followUntil(atEnd, 4.0f, 2, 0.2f);
 
     turnController.turn(0.0f);
-    // distanceController.move(-0.1f);
+    distanceController.move(-0.1f);
     turnController.turn(180.0f);
 
-    distanceController.moveUntil(-0.15f, eitherBackLine, 0.5f, 2);
+    // distanceController.moveUntil(-0.15f, eitherBackLine, 0.5f, 2);
+    // distanceController.move(0.1f);
+    // turnController.turn(270.0f);
+    // distanceController.move(-0.2f);
+    // turnController.turn(180.0f);
+    distanceController.move(-0.05f);
+    distanceController.moveUntil(-0.15f, eitherBackLine, 2.0f, 2);
     distanceController.move(0.1f);
     turnController.turn(270.0f);
-    distanceController.move(-0.2f);
+    distanceController.move(-0.21f);
     turnController.turn(180.0f);
+    distanceController.moveUntil(-0.2f, eitherSwitchPressed, 0.5f, 2);
+    rearClaw.close();
+    delay(2000);
+
+    //find habitat boss
+    distanceController.move(0.1f);
+    turnController.turn(190.0f);
+    distanceController.moveUntil(0.44f, lineIsDetectedF, 2.0f, 1, false);
+    lineController.followUntil(lineIsDetectedBR, 2.0f, 1, 0.15f);
+    turnController.turn(260.0f);
+    distanceController.move(-0.24f);
+    rearClaw.open();
+    turnController.turn(240.0f);
+    turnController.turn(280.0f);
+    turnController.turn(270.0f);
+    distanceController.move(0.2f);
 
 
 

@@ -4,7 +4,7 @@
 #include "mission.hpp"
 
 // Targets for the single-primitive step-response tests.
-static const float TEST_TURN_DEG = -10.0f; // + is CCW
+static const float TEST_TURN_DEG = -45; // + is CCW
 static const float TEST_DIST_M = 0.15f;    // + is forward
 
 // Old square dead-reckoning test.
@@ -55,6 +55,18 @@ void motorPIDTask(void* pvParameters) {
     for (;;) {
         lineController.updateMotorPID();
         vTaskDelay(pdMS_TO_TICKS(cfg::CONTROL_PERIOD_MS));
+    }
+}
+
+void servoTestTask(void* pvParameters) {
+    vTaskDelay(pdMS_TO_TICKS(2000));
+
+    for (;;) {
+        rearClaw.close();
+        vTaskDelay(pdMS_TO_TICKS(3000)); 
+        
+        rearClaw.open();
+        vTaskDelay(pdMS_TO_TICKS(3000));
     }
 }
 
@@ -255,3 +267,4 @@ void lineSensorCalibrateLoop() {
     Serial.println(irArray.getMaxR());
     delay(50);
 }
+

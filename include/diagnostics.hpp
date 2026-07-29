@@ -20,6 +20,8 @@ void distanceTestTask(void* pvParameters);
 void linePIDTask(void* pvParameters);
 void motorPIDTask(void* pvParameters);
 
+void servoTestTask(void* pvParameters);
+
 // Old square dead-reckoning test (self-updates IMU).
 void navTask(void* pvParameters);
 

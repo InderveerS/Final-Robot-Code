@@ -97,8 +97,8 @@ constexpr uint8_t FRONT_CLAW_MAX_ANGLE = 110;
 
 // ---- Servo (rear claw) ----
 constexpr uint8_t REAR_CLAW_PIN = 8; 
-constexpr uint8_t REAR_CLAW_MIN_ANGLE = 60;
-constexpr uint8_t REAR_CLAW_MAX_ANGLE = 80;
+constexpr uint8_t REAR_CLAW_MIN_ANGLE = 10;
+constexpr uint8_t REAR_CLAW_MAX_ANGLE = 180;
 
 // ---- ESP-CAM ----
 constexpr HardwareSerial* ESP_SERIAL = &Serial1; // pointer (a constexpr ref can't bind Serial1); deref at use
@@ -136,13 +136,13 @@ constexpr float DIST_SETTLE_TOLERANCE = 0.01f;  // m
 constexpr int DIST_SETTLE_CYCLES = 10;
 
 // ---- Turn controller ----
-constexpr float TURN_KP = 5.5f;
+constexpr float TURN_KP = 5.0f;
 constexpr float TURN_KI = 0.0f;
-constexpr float TURN_KD = 0.35f;
+constexpr float TURN_KD = 0.85f;
 constexpr float TURN_ALPHA = 0.25f;
 constexpr float TURN_MAX_OMEGA = 170.0f;       // deg/s
-constexpr float TURN_MIN_OMEGA = 100.0f;        // deg/s breakaway floor
-constexpr float TURN_SETTLE_TOLERANCE = 0.5f;  // deg
+constexpr float TURN_MIN_OMEGA = 80.0f;        // deg/s breakaway floor
+constexpr float TURN_SETTLE_TOLERANCE = 1.0f;  // deg
 constexpr int TURN_SETTLE_CYCLES = 10;
 
 // ---- User Input Module ----

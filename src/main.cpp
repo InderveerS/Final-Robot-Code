@@ -18,9 +18,11 @@ void setup() {
     // nav) must run WITHOUT the imuTask above. Pair a step-response test with
     // csvLogLoop() in loop(); the duty sweep and log helpers print themselves.
 
-    xTaskCreatePinnedToCore(espLoggingTask, "ESP Log", 4096, NULL, 1, NULL, 0);
+    //xTaskCreatePinnedToCore(espLoggingTask, "ESP Log", 4096, NULL, 1, NULL, 0);
 
-    // xTaskCreatePinnedToCore(turnTestTask, "Turn Test", 4096, NULL, 1, NULL, 1);
+    //xTaskCreatePinnedToCore(turnTestTask, "Turn Test", 4096, NULL, 1, NULL, 1);
+
+    //xTaskCreatePinnedToCore(servoTestTask, "Servo Test", 4096, NULL, 1, NULL, 1);
 }
 
 
