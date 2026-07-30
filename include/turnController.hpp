@@ -18,7 +18,16 @@ class TurnController {
         // Blocking: turns to the absolute heading absHeadingDeg (shortest path)
         // then returns. Gives up after timeoutMs so a turn that can never settle
         // can't hang the mission.
-        void turn(float absHeadingDeg, uint16_t timeoutMs = 5000, uint16_t delayMs = cfg::CONTROL_PERIOD_MS);
+        //   settleTolerance : deg of error counted as "arrived", for THIS call.
+        //     Note the floor this competes with: outside the band the rate is
+        //     forced to at least TURN_MIN_OMEGA, so one control cycle rotates
+        //     minOmega * dt = 0.75 deg at the current 75 deg/s and 10 ms. A
+        //     tolerance below that is smaller than the robot's own step, so it
+        //     can be stepped over - which is why tight turns hunt and sometimes
+        //     time out. Loosen it where a degree does not matter to buy speed
+        //     and reliability; tighten it only where accuracy really pays.
+        void turn(float absHeadingDeg, float settleTolerance = cfg::TURN_SETTLE_TOLERANCE,
+                  uint16_t timeoutMs = 5000, uint16_t delayMs = cfg::CONTROL_PERIOD_MS);
 
         // Blocking: spins in place at a CONSTANT rate (independent of the
         // turn-PID clamp) until the event fires OR maxAngle (deg turned from
@@ -39,8 +48,14 @@ class TurnController {
         // Minimum commanded rate outside the settle band: keeps wheel speeds
         // above static-friction breakaway so small turns can't stall short.
         static constexpr float minOmega = cfg::TURN_MIN_OMEGA;
-        static constexpr float settleTolerance = cfg::TURN_SETTLE_TOLERANCE;
+        static constexpr float DEFAULT_SETTLE_TOLERANCE = cfg::TURN_SETTLE_TOLERANCE;
         static constexpr int SETTLE_CYCLES = cfg::TURN_SETTLE_CYCLES;
+
+        // Live settle band, set by turn() on every call so it cannot carry over.
+        // update() reads it. If you drive turnTo()/turnBy() + update() yourself
+        // (the diagnostics turn tests do), this holds whatever the last turn()
+        // set, or the default if none has run.
+        float mSettleTolerance = DEFAULT_SETTLE_TOLERANCE;
 
         MotorController& LeftMotor;
         MotorController& RightMotor;

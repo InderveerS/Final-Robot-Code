@@ -42,6 +42,13 @@ void robotBegin() {
 
     delay(5000); // let the BNO055 gyro self-calibrate: keep the robot still
 
+    // Measure our own gyro bias only now, on a settled chip. The 5 s above is
+    // what lets the BNO055's internal gyro calibration converge, and the rate
+    // register it feeds is what we average - so sampling before this delay (as
+    // begin() used to) measures an uncalibrated sensor. Robot must still be
+    // stationary here.
+    robotImu.captureBias();
+
     leftMotor.resetPID();
     rightMotor.resetPID();
 }

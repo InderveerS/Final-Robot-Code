@@ -18,7 +18,7 @@ void setup() {
     // nav) must run WITHOUT the imuTask above. Pair a step-response test with
     // csvLogLoop() in loop(); the duty sweep and log helpers print themselves.
 
-    //xTaskCreatePinnedToCore(espLoggingTask, "ESP Log", 4096, NULL, 1, NULL, 0);
+    xTaskCreatePinnedToCore(espLoggingTask, "ESP Log", 4096, NULL, 1, NULL, 0);
 
     //xTaskCreatePinnedToCore(turnTestTask, "Turn Test", 4096, NULL, 1, NULL, 1);
 
@@ -27,12 +27,25 @@ void setup() {
 
 
 void loop() {
-    // csvLogLoop(); 
-    // lineSensorCalibrateLoop();
-    // farSensorCalibrateLoop();
 
-    // uint16_t l, c, r;
-    // irArray.readMiddle(l, c, r); // same three ADC reads getTotal() did
+    // farSensorCalibrateLoop();
+    // delay(30);
+
+    // Serial.print(millis());
+    // Serial.print(", ");
+    // Serial.print(robotImu.getHeading());
+    // Serial.print(", ");
+    // Serial.print(robotImu.getRawEuler());
+    // Serial.print(", ");
+    // Serial.print(robotImu.getRate());
+    // Serial.print(", ");
+    // Serial.println(robotImu.isUsingGyro());
+    // delay(100);
+
+    // Serial.print(backLeftSwitch.isPressed());
+    // Serial.print(", ");
+    // Serial.println(backRightSwitch.isPressed());
+    // delay(100);
 
     // Serial.print(l);
     // Serial.print(", ");

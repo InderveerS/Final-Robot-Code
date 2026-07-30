@@ -151,6 +151,11 @@ void espLoggingTask(void* pvParameters) {
     //     euler is the chip's absolute fused heading and gyro flags which path
     //     built this sample. Compare heading's delta to euler's across a turn
     //     to see whether the ESTIMATE drifted rather than the controller.
+    //   bias            - gyro rest bias (raw sensor deg/s) from captureBias().
+    //     Constant for the whole run by design, so it is a per-run record of
+    //     what the boot capture measured, not a live signal. Compare it across
+    //     runs: if it lands in the same place each boot, the capture is
+    //     trustworthy and heading error is coming from somewhere else.
     //   FL/FR/L/C/R     - normalized IR (0-1000), read fresh here. FL/FR are
     //     what lineBL/lineBR compare against 400; L+C+R is what lineF compares
     //     against LINE_PRESENT_THRESHOLD, and the three separately show which
@@ -167,7 +172,7 @@ void espLoggingTask(void* pvParameters) {
     //     the log.
     vTaskDelay(pdMS_TO_TICKS(200)); // let the ESP-CAM boot and open its SD file
 
-    static const char* HEADER = "t,seq,heading,euler,rate,gyro,roll,dist,distTarget,linePos,FL,FR,L,C,R,turnTarget,Lt,Lm,Lout,Lpwm,Rt,Rm,Rout,Rpwm,step,activity,goal,event";
+    static const char* HEADER = "t,seq,heading,euler,rate,gyro,bias,roll,dist,distTarget,linePos,FL,FR,L,C,R,turnTarget,Lt,Lm,Lout,Lpwm,Rt,Rm,Rout,Rpwm,step,activity,goal,event";
     robotCommunicator.send(HEADER);
     // Give the ESP-CAM time to open its SD file. Keep this SHORT: missionTask
     // starts driving 200 ms after boot, so anything longer silently drops the
@@ -190,10 +195,10 @@ void espLoggingTask(void* pvParameters) {
         irArray.readMiddle(l, c, r); // same three ADC reads getTotal() did
 
         robotCommunicator.sendf(
-            "%lu,%lu,%.1f,%.1f,%.1f,%d,%.1f,%.3f,%.3f,%.3f,%u,%u,%u,%u,%u,%.1f,%.3f,%.3f,%.3f,%d,%.3f,%.3f,%.3f,%d,%d,%s,%.2f,%s",
+            "%lu,%lu,%.1f,%.1f,%.1f,%d,%.3f,%.1f,%.3f,%.3f,%.3f,%u,%u,%u,%u,%u,%.1f,%.3f,%.3f,%.3f,%d,%.3f,%.3f,%.3f,%d,%d,%s,%.2f,%s",
             millis(), seq,
             robotImu.getHeading(), robotImu.getRawEuler(), robotImu.getRate(),
-            (int)robotImu.isUsingGyro(), robotImu.getRoll(),
+            (int)robotImu.isUsingGyro(), robotImu.getGyroBias(), robotImu.getRoll(),
             distanceController.getDistance(), distanceController.getTargetDistance(),
             lineController.getLinePosition(),
             fl, fr, (unsigned)l, (unsigned)c, (unsigned)r,

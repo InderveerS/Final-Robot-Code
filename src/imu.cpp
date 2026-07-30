@@ -28,22 +28,33 @@ bool Imu::begin() {
     bno.setExtCrystalUse(true); // mode-cycles the chip internally, keep after begin()
     delay(100);
 
-    // Capture the gyro-z rest bias (robot must be stationary). Subtracting
-    // this in update() removes most of the integration drift.
+    return true;
+}
+
+// Averages the gyro-z rest bias. The robot MUST be stationary throughout.
+//
+// Deliberately NOT part of begin(): begin() finishes ~100 ms after
+// setExtCrystalUse() mode-cycles the chip, long before the chip's own gyro
+// calibration has converged, so a bias measured there is taken on an unsettled
+// sensor. Doing it there cost ~0.03 deg/s of residual - about 2 deg of heading
+// over an 80 s run (LOG175: captured -0.042, settled value ~-0.01).
+//
+// Call this after the boot settle, or any other time the robot is known to be
+// still. Until it is called mGyroBias is 0, which is degraded but not broken.
+void Imu::captureBias() {
     double sum = 0.0;
     for (int i = 0; i < cfg::IMU_GYRO_BIAS_SAMPLES; i++) {
         sum += bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE).z(); // deg/s
         delay(10);
     }
     mGyroBias = (float)(sum / cfg::IMU_GYRO_BIAS_SAMPLES);
-
-    return true;
 }
 
 void Imu::update() {
     uint32_t nowMicros = micros();
     // Rate register: deg/s, no fusion pipeline, valid to +/-2000 deg/s.
-    float rate = cfg::IMU_GYRO_SIGN * cfg::IMU_GYRO_SCALE * ((float)bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE).z() - mGyroBias);
+    float rawZ = (float)bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE).z();
+    float rate = cfg::IMU_GYRO_SIGN * cfg::IMU_GYRO_SCALE * (rawZ - mGyroBias);
     // Fused Euler vector (one read): x = heading, y = roll, z = pitch.
     auto eulerVec = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
     float euler = cfg::IMU_EULER_SIGN * (float)eulerVec.x(); // heading, CCW-positive
@@ -83,6 +94,32 @@ void Imu::update() {
     mLastMicros = nowMicros;
     mLastRate = rate;
     mLastEuler = euler;
+    // No bias tracking here - see the note in config.hpp for what was tried and
+    // why it was removed. mGyroBias is set once by captureBias() and held.
+}
+
+// Re-references the heading estimate to a known absolute field heading. Use it
+// where the robot's physical orientation is externally constrained - the end of
+// a line-follow being the usable case on this field, since the line is fixed to
+// the field while the habitat moves.
+//
+// Adds the wrapped difference rather than assigning, so the result is the NEAREST
+// equivalent of absHeadingDeg to the current estimate. That preserves the
+// continuous/unwrapped heading that turnTo() depends on: a bare assignment after
+// several rotations would leave heading near 0 while the robot still "knew" it had
+// turned 3600, and the next turnTo() would unwind all of it. This form can never
+// move heading by more than 180 deg.
+//
+// Only worth calling if absHeadingDeg is known in the BOOT frame to better than
+// the drift being removed. If that number was itself read off a drifting
+// estimate, this re-references to a moving target and buys nothing.
+//
+// Threading: mHeading is otherwise written only by update(), on the IMU task.
+// Calling this from the mission task can drop a single 10 ms increment - a few
+// hundredths of a degree - but cannot produce a torn value. Not worth a lock
+// against the degrees this exists to remove.
+void Imu::setHeading(float absHeadingDeg) {
+    mHeading += wrapTo180(absHeadingDeg - mHeading);
 }
 
 float Imu::wrapTo180(float angle) {

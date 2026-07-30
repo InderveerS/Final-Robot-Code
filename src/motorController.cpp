@@ -19,10 +19,23 @@ void MotorController::setTargetVelocity(float target) {
     float output = pid.update(error);
     mLastOutput = output;
 
+    // Static-friction kick: while this wheel is commanded to move but reads
+    // stopped, swap in the breakaway deadband. Latched with hysteresis so the
+    // 16-point duty step can't chatter around the threshold. Only the deadband
+    // changes - the slope still describes the moving region, and the PID is
+    // untouched, so once the wheel breaks free this releases on its own.
+    float speed = fabsf(velocity);
+    if (mKickActive) {
+        if (speed > FF_STALL_EXIT_VEL) mKickActive = false;
+    } else if (speed < FF_STALL_VEL) {
+        mKickActive = true;
+    }
+    const float deadband = mKickActive ? FF_STATIC_DEADBAND : FF_DEADBAND;
+
     // Affine feedforward with deadband, applied in the direction of travel.
     float feedforward = 0.0f;
-    if (mRampedTarget > FF_VEL_THRESHOLD)       feedforward = FF_DEADBAND + FF_SLOPE * mRampedTarget;
-    else if (mRampedTarget < -FF_VEL_THRESHOLD) feedforward = -FF_DEADBAND + FF_SLOPE * mRampedTarget;
+    if (mRampedTarget > FF_VEL_THRESHOLD)       feedforward = deadband + FF_SLOPE * mRampedTarget;
+    else if (mRampedTarget < -FF_VEL_THRESHOLD) feedforward = -deadband + FF_SLOPE * mRampedTarget;
 
     float final_pwm = constrain(feedforward + output, OUT_MIN, OUT_MAX);
     mLastPwm = static_cast<int8_t>(roundf(final_pwm));

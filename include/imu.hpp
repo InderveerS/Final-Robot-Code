@@ -9,9 +9,16 @@ class Imu {
     public:
         Imu();
 
-        // Robot must be STATIONARY during begin(): it captures the gyro's
-        // rest bias (~1 s of averaging) that update() subtracts forever after.
+        // Configures I2C and puts the chip in IMUPLUS. Does NOT measure the gyro
+        // bias - call captureBias() for that, once the robot has settled.
         bool begin();
+
+        // Measures the gyro's rest bias (~1 s of averaging); the robot MUST be
+        // stationary. Separate from begin() on purpose - see imu.cpp. Call it
+        // after the boot settle so the chip's own gyro calibration has converged
+        // first, otherwise the estimate carries ~0.03 deg/s of error into every
+        // raw-gyro integration. Safe to call again whenever the robot is still.
+        void captureBias();
 
         // Two I2C reads per call - call at 100 Hz, and only ever from a single
         // task (Wire is not thread-safe). Hybrid heading: below the handoff
@@ -26,6 +33,13 @@ class Imu {
         // direction the robot faced at startup.
         // Cached value - no I2C, safe to call from anywhere.
         float getHeading() const { return mHeading; }
+
+        // Landmark reset: re-reference the estimate to a known absolute field
+        // heading, discarding whatever drift has accumulated. Intended for use
+        // right after a line-follow has physically aligned the robot with a line
+        // of known bearing. Lands on the NEAREST equivalent angle, so the
+        // continuous/unwrapped property above survives - see imu.cpp.
+        void setHeading(float absHeadingDeg);
 
         // Tilt from the fused Euler output (DEGREES), absolute (not zeroed at
         // start). Gravity-referenced, so unlike heading these are drift-free
@@ -45,6 +59,10 @@ class Imu {
         float getRawEuler() const { return mLastEuler; } // fused Euler heading (deg, CCW+)
         float getRate() const { return mLastRate; }      // bias-corrected gyro-z (deg/s)
         bool isUsingGyro() const { return mUsingGyro; }  // last update integrated raw gyro?
+        // Rest bias in raw sensor deg/s, set once by captureBias() and then held
+        // constant - update() does NOT track it (see config.hpp). Logged so the
+        // boot capture can be checked run to run.
+        float getGyroBias() const { return mGyroBias; }
 
         static float wrapTo180(float angle); // wrap into [-180, 180] degrees
 

@@ -53,8 +53,8 @@ constexpr uint16_t MOTOR_PWM_FREQ_HZ = 1000;
 constexpr uint16_t MOTOR_DEADTIME_US = 500; // shoot-through guard on direction flip
 constexpr float MOTOR_OUT_MIN = -100.0f;
 constexpr float MOTOR_OUT_MAX = 100.0f;
-constexpr float MOTOR_KP = 70.0f;
-constexpr float MOTOR_KI = 50.0f;
+constexpr float MOTOR_KP = 90.0f;
+constexpr float MOTOR_KI = 70.0f;
 constexpr float MOTOR_KD = 0.0f;
 constexpr float MOTOR_ALPHA = 0.0f;
 constexpr float MOTOR_INTEGRAL_THRESH = 0.1f; // feature hook, currently unused
@@ -65,6 +65,25 @@ constexpr float MOTOR_MAX_ACCEL = 0.6f;       // feature hook, currently unused
 constexpr float FF_DEADBAND = 21.0f;      // duty %
 constexpr float FF_SLOPE = 84.0f;         // duty % per m/s
 constexpr float FF_VEL_THRESHOLD = 0.02f; // m/s
+
+// Static-friction kick. FF_DEADBAND is the intercept of the MOVING-region fit,
+// so it systematically under-commands from rest - breaking away takes far more
+// duty than sustaining motion. Measured on this robot: a straight move starts
+// at ~37% duty, but a POINT TURN needs ~58% because the tyres scrub instead of
+// roll (LOG161: a turn sat dead at 46-55% and broke free at 58-59%). While a
+// wheel is told to move but reads stopped, this deadband replaces FF_DEADBAND
+// so the command clears breakaway at once, instead of waiting ~1 s for the
+// velocity integral to crawl there. 37 puts a turn at ~66% and a DIST_MIN_VEL
+// move at ~58%: both comfortably past breakaway with margin for battery droop.
+// Lower it toward 31 if motion onset feels jerky.
+constexpr float FF_STATIC_DEADBAND = 37.0f; // duty %
+// Below this measured speed a driven wheel counts as stopped. One encoder count
+// per 10 ms cycle is 0.0148 m/s, so this is ~2 counts: above quantisation noise,
+// far below any speed the primitives command (DIST_MIN_VEL 0.12, turn floor
+// 0.166). The exit threshold is higher so the kick can't chatter on and off
+// around the boundary - a 16-point duty step at audio rate would judder.
+constexpr float FF_STALL_VEL = 0.03f;      // m/s, engage below this
+constexpr float FF_STALL_EXIT_VEL = 0.06f; // m/s, release above this
 
 // ---- Encoder ----
 constexpr uint16_t ENCODER_FILTER = 250; // PCNT glitch filter, APB cycles
@@ -77,8 +96,41 @@ constexpr float IMU_GYRO_SIGN = 1.0f;   // flip if CCW rotation decreases headin
 constexpr float IMU_EULER_SIGN = -1.0f; // Euler heading is CW-positive
 constexpr float IMU_GYRO_SCALE = 0.974f; // sensitivity trim, (N*360)/reported
 constexpr int IMU_GYRO_BIAS_SAMPLES = 100; // x CONTROL_PERIOD_MS of rest averaging
+// 40, NOT 80. Raising it to 80 - to keep more rotation on the drift-free fused
+// path - measurably backfired: LOG177 regressed heading-vs-euler divergence
+// from +1.50 to -3.40 deg and the last turn was visibly ~5 deg out. Euler
+// accuracy between 40 and 80 deg/s has never actually been measured; the only
+// data point is 0.82% under-count at 140 deg/s (LOG175), so moving ~800 deg of
+// rotation onto the fused path in that band was a guess. Do not raise this
+// again without first measuring Euler against the gyro across 40-100 deg/s.
 constexpr float IMU_FUSION_HANDOFF_DPS = 40.0f; // above this, integrate raw gyro
-constexpr uint16_t IMU_EULER_RESUME_MS = 500;   // gyro-path hold after a fast turn
+// 50, was 500. The hold existed to avoid double-counting the fusion's catch-up
+// slew after a fast turn - but that slew does not happen on this chip, measured
+// two ways. (a) During a hold, euler and heading track to within 0.2 deg over
+// 450 ms while the robot decelerates, so the fused output is following the real
+// motion, not lagging it. (b) In LOG175 the heading-euler divergence froze at
+// exactly +1.80 deg for 20 s after a 20-rotation spin - had the fusion been
+// recovering its under-counted angle, that would have decayed toward zero. It
+// under-counts permanently and never repays.
+//
+// Meanwhile the hold was 57% of all gyro-path time (14.9 s of 26.3 s in LOG178),
+// spent integrating raw gyro at low rates where euler is perfectly good - which
+// is where roughly 1.2 deg of the run's 2.1 deg heading error came from.
+//
+// Cannot be 0: the test is `now - mLastFastMicros < RESUME_MS`, so zero is false
+// even on the sample that sets mLastFastMicros and the gyro path would never
+// engage at all. 50 ms is 5 control cycles - enough to ride out rate jitter.
+constexpr uint16_t IMU_EULER_RESUME_MS = 50;    // gyro-path hold after a fast turn
+
+// There is deliberately NO continuous bias tracking. An EMA gated on "Euler
+// path AND |rate| < 2 deg/s" was tried and removed: driving straight satisfies
+// that gate continuously, so it absorbed vibration and heading-hold micro-
+// corrections as bias and swung over a 0.22 deg/s range in LOG177 - seven times
+// the 0.03 deg/s of real error it was built to remove, and it only settled once
+// the robot stopped for good. A tracker needs a WHEELS-STOPPED gate, which
+// means feeding motor state into Imu; a rate threshold is not a substitute.
+// Imu::captureBias() after the boot settle covers the static case, and that
+// part did work - boot bias went from -0.042 to -0.008.
 
 // ---- IR array ----
 constexpr adc1_channel_t IR_FAR_LEFT_CH = ADC1_CHANNEL_4;
@@ -97,8 +149,8 @@ constexpr uint8_t FRONT_CLAW_MAX_ANGLE = 110;
 
 // ---- Servo (rear claw) ----
 constexpr uint8_t REAR_CLAW_PIN = 8; 
-constexpr uint8_t REAR_CLAW_MIN_ANGLE = 10;
-constexpr uint8_t REAR_CLAW_MAX_ANGLE = 180;
+constexpr uint8_t REAR_CLAW_MIN_ANGLE = 5;
+constexpr uint8_t REAR_CLAW_MAX_ANGLE = 177;
 
 // ---- ESP-CAM ----
 constexpr HardwareSerial* ESP_SERIAL = &Serial1; // pointer (a constexpr ref can't bind Serial1); deref at use
@@ -117,37 +169,37 @@ constexpr float LINE_KD = 0.008f;
 constexpr float LINE_ALPHA = 0.2f;
 constexpr float LINE_TARGET = 0.0f;
 constexpr float LINE_MAX_CORRECTION = 5.263394f; // omega clamp, rad/s
-constexpr float LINE_BASE_VEL = 0.42f;
+constexpr float LINE_BASE_VEL = 0.5f;
 constexpr float LINE_VEL_CHANGE_CONST = 1.3f; // base-vel reduction vs |omega|
 
 // ---- Distance controller ----
 constexpr float DIST_KP = 4.0f;
 constexpr float DIST_KI = 0.0f;
-constexpr float DIST_KD = 0.0f;
+constexpr float DIST_KD = 0.05f;
 constexpr float DIST_HKP = 10.0f; // heading hold
 constexpr float DIST_HKI = 3.0f;
 constexpr float DIST_HKD = 0.0f;
-constexpr float DIST_ALPHA = 0.25f;
+constexpr float DIST_ALPHA = 0.2f;
 constexpr float DIST_VEL_MAX = 0.5f;
 constexpr float DIST_VEL_MIN = -0.5f;
-constexpr float DIST_MIN_VEL = 0.10f;           // breakaway floor
+constexpr float DIST_MIN_VEL = 0.12f;           // breakaway floor
 constexpr float DIST_MAX_HEADING_OMEGA = 85.0f; // deg/s
-constexpr float DIST_SETTLE_TOLERANCE = 0.01f;  // m
+constexpr float DIST_SETTLE_TOLERANCE = 0.005f;  // m
 constexpr int DIST_SETTLE_CYCLES = 10;
 
 // ---- Turn controller ----
 constexpr float TURN_KP = 5.0f;
 constexpr float TURN_KI = 0.0f;
-constexpr float TURN_KD = 0.85f;
+constexpr float TURN_KD = 0.8f;
 constexpr float TURN_ALPHA = 0.25f;
 constexpr float TURN_MAX_OMEGA = 170.0f;       // deg/s
-constexpr float TURN_MIN_OMEGA = 80.0f;        // deg/s breakaway floor
-constexpr float TURN_SETTLE_TOLERANCE = 1.0f;  // deg
+constexpr float TURN_MIN_OMEGA = 60.0f;        // deg/s breakaway floor
+constexpr float TURN_SETTLE_TOLERANCE = 0.5f;  // deg
 constexpr int TURN_SETTLE_CYCLES = 10;
 
 // ---- User Input Module ----
 constexpr uint8_t USER_INPUT_RAW = 10;
-constexpr uint8_t TELETUBBY_LED = 11;
-constexpr uint8_t TELETUBBY_SPEAKER = 12;
+// constexpr uint8_t TELETUBBY_LED = 11;
+// constexpr uint8_t TELETUBBY_SPEAKER = 13;
 
 } // namespace cfg

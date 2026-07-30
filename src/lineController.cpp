@@ -63,6 +63,9 @@ StopReason LineController::followUntil(bool (*event)(), float maxDistance,
     }
 
     if (stopAtEnd) {
+        LeftMotor.resetPID();
+        RightMotor.resetPID();
+
         LeftMotor.setTargetVelocity(0.0f);
         RightMotor.setTargetVelocity(0.0f);
     }

@@ -27,7 +27,7 @@ void TurnController::update() {
     // Static-friction floor: P alone commands wheel speeds below breakaway
     // for small errors, so small turns stall short of the target. Outside
     // the settle band enforce a minimum rate; inside it, coast to a stop.
-    if (fabsf(error) <= settleTolerance) {
+    if (fabsf(error) <= mSettleTolerance) {
         omega = 0.0f;
     } else if (fabsf(omega) < minOmega) {
         float dir = (omega != 0.0f) ? omega : error;
@@ -40,26 +40,35 @@ void TurnController::update() {
     LeftMotor.setTargetVelocity(-halfV);
     RightMotor.setTargetVelocity(halfV);
 
-    if (fabsf(error) < settleTolerance) {
+    if (fabsf(error) < mSettleTolerance) {
         if (mSettledCount < SETTLE_CYCLES) mSettledCount++;
     } else {
         mSettledCount = 0;
     }
 }
 
-void TurnController::turn(float absHeadingDeg, uint16_t timeoutMs, uint16_t delayMs) {
+void TurnController::turn(float absHeadingDeg, float settleTolerance,
+                          uint16_t timeoutMs, uint16_t delayMs) {
     telemetry::setActivity("TURN", absHeadingDeg, false, nullptr);
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(delayMs);
     const TickType_t deadline = xLastWakeTime + pdMS_TO_TICKS(timeoutMs);
+    // Set every call, so a previous turn's tolerance can never leak into this one.
+    mSettleTolerance = settleTolerance;
 
     turnTo(absHeadingDeg);
     // Block until settled or the deadline passes. The signed tick difference
     // handles the (rare) tick-counter wraparound correctly.
+
+    LeftMotor.resetPID();
+    RightMotor.resetPID();
     while (!isSettled() && (int32_t)(deadline - xTaskGetTickCount()) > 0) {
         update();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
+
+    LeftMotor.resetPID();
+    RightMotor.resetPID();
 
     // Stop so a finished or timed-out turn doesn't keep commanding the motors.
     LeftMotor.setTargetVelocity(0.0f);
@@ -97,6 +106,9 @@ StopReason TurnController::turnUntil(float omegaDps, bool (*event)(), float maxA
     }
 
     if (stopAtEnd) {
+        LeftMotor.resetPID();
+        RightMotor.resetPID();
+
         LeftMotor.setTargetVelocity(0.0f);
         RightMotor.setTargetVelocity(0.0f);
     }

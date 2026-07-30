@@ -52,8 +52,9 @@ class IRArray {
 
         // MinFR: 1235, MaxFR: 3877, MinFL: 267, MaxFL: 3271
         // MinFR: 263, MaxFR: 3365, MinFL: 279, MaxFL: 3801
-        uint16_t minFL = 279, maxFL = 3801;
-        uint16_t minFR = 263, maxFR = 3365;
+        // MinFR: 199, MaxFR: 2870, MinFL: 185, MaxFL: 2333
+        uint16_t minFL = 185, maxFL = 2333;
+        uint16_t minFR = 199, maxFR = 2870;
 
         int8_t lastDirection = 0; // -1 for left, 1 for right, 0 for center
 };    

@@ -65,10 +65,16 @@ void DistanceController::move(float targetDistance, uint16_t timeoutMs, uint16_t
     startMove(targetDistance);
     // Block until settled or the deadline passes. The signed tick difference
     // handles the (rare) tick-counter wraparound correctly.
+
+    LeftMotor.resetPID();
+    RightMotor.resetPID();
     while (!isSettled() && (int32_t)(deadline - xTaskGetTickCount()) > 0) {
         update();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
+
+    LeftMotor.resetPID();
+    RightMotor.resetPID();
 
     // Stop so a finished or timed-out move doesn't keep commanding the motors.
     LeftMotor.setTargetVelocity(0.0f);
@@ -111,6 +117,9 @@ StopReason DistanceController::moveUntil(float velocity, bool (*event)(), float 
     }
 
     if (stopAtEnd) {
+        LeftMotor.resetPID();
+        RightMotor.resetPID();
+
         LeftMotor.setTargetVelocity(0.0f);
         RightMotor.setTargetVelocity(0.0f);
     }
