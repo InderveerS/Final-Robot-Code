@@ -27,7 +27,7 @@ class TurnController {
         //     time out. Loosen it where a degree does not matter to buy speed
         //     and reliability; tighten it only where accuracy really pays.
         void turn(float absHeadingDeg, float settleTolerance = cfg::TURN_SETTLE_TOLERANCE,
-                  uint16_t timeoutMs = 5000, uint16_t delayMs = cfg::CONTROL_PERIOD_MS);
+                  uint16_t timeoutMs = 10000, uint16_t delayMs = cfg::CONTROL_PERIOD_MS);
 
         // Blocking: spins in place at a CONSTANT rate (independent of the
         // turn-PID clamp) until the event fires OR maxAngle (deg turned from

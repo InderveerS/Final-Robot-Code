@@ -12,6 +12,7 @@ bool eitherSwitchPressed() { return backRightSwitch.isPressed() || backLeftSwitc
 bool onFlatGround() { return robotImu.getRoll() > -3.0f; }
 bool atEnd() {return irArray.getTotal() > 2500; }
 bool eitherBackLine() { return lineIsDetectedBL() || lineIsDetectedBR(); }
+bool notAtEnd() { return !atEnd(); }
 bool useless() { return false; } // placeholder "no event"
 
 // Maps an event predicate to a short name for telemetry (function-pointer compare).
@@ -32,6 +33,17 @@ static void missionDelay(uint32_t ms) {
     vTaskDelay(pdMS_TO_TICKS(ms));
 }
 
+void calibrateOnEnd(void) {
+    turnController.turnUntil(100.0f, notAtEnd, 35.0f, 2);
+    float end1 = robotImu.getHeading();
+    turnController.turnUntil(-100.0f, useless, 0.0f, 1, false);
+    turnController.turnUntil(-100.0f, notAtEnd, -35.0f, 2);
+    float end2 = robotImu.getHeading();
+
+    float newZero = (end1 + end2)/2.0f;
+    robotImu.setHeading(newZero);
+}
+
 void missionTask(void* pvParameters) {
     vTaskDelay(pdMS_TO_TICKS(200)); // let the IMU task accumulate a few samples first
 
@@ -43,39 +55,49 @@ void missionTask(void* pvParameters) {
     frontClaw.close();
     rearClaw.open();
     lineController.followUntil(useless, 0.5f);
-    turnController.turn(-20.0f, 1.0f);
+    turnController.turn(-20.0f, 3.0f);
     // look at telletubby 1
     missionDelay(500);
 
     telemetry::nextStep();
     turnController.turnUntil(140.0f, lineIsDetectedF, 35.0f);
     lineController.followUntil(useless, 0.55f);
-    turnController.turn(15.0f, 1.0f);
+    turnController.turn(15.0f, 3.0f);
     // look at telletubby 2
     missionDelay(500);
 
     telemetry::nextStep();
-    turnController.turnUntil(-140.0f, lineIsDetectedF, 30.0f);
+    turnController.turnUntil(-130.0f, lineIsDetectedF, 30.0f);
     lineController.followUntil(useless, 0.45f);
-    turnController.turn(-5.0f, 1.0f);
+    turnController.turn(-5.0f, 2.0f);
     // look at telletubby 3
     missionDelay(500);
 
     telemetry::nextStep();
-    turnController.turnUntil(140.0f, lineIsDetectedF, 35.0f);
+    turnController.turnUntil(130.0f, lineIsDetectedF, 35.0f);
     lineController.followUntil(useless, 0.5f);
-    turnController.turn(70.0f, 1.0f);
+    turnController.turn(70.0f, 3.0f);
     // look at telletubby 4
     missionDelay(500);
 
     telemetry::nextStep();
-    distanceController.move(0.28f);
-    turnController.turn(150.0f);
-    distanceController.moveUntil(0.44f, useless, 0.3f, 1, false);
+    distanceController.move(0.39f);
+    turnController.turn(165.0f);
+    // >>> DIAG P1: pre-ramp photo. turn() stops the motors, so the robot is
+    // genuinely stationary here - a coasting primitive would keep driving
+    // through a missionDelay. Everything from here to P2 is "the ramp section",
+    // approach included. Remove for competition.
+    // missionDelay(5000);
+    distanceController.moveUntil(0.34f, useless, 0.3f, 1, false);
     telemetry::nextStep();
     distanceController.moveUntil(0.44f, lineIsDetectedF, 0.5f, 1, false);
     lineController.followUntil(useless, 0.7f, 1, cfg::LINE_BASE_VEL, false);
     lineController.followUntil(onFlatGround, 1.5f);
+    // >>> DIAG P2: post-ramp photo. This follow stops at its end, so the robot
+    // is stationary. (P2 - P1) measured from the photos is the TRUE heading
+    // change across the ramp; compare against the log's heading change over the
+    // same interval. Remove for competition.
+    // missionDelay(5000);
     // look at telletubby 5
     missionDelay(500);
 
@@ -85,7 +107,7 @@ void missionTask(void* pvParameters) {
     lineController.followUntil(lineIsDetectedBL, 0.8f, 2);
     missionDelay(100);
     //float curr = robotImu.getHeading();
-    turnController.turn(-95.0f);
+    turnController.turn(-95.0f, 3.0f);
     // distanceController.move(0.1f);
     // look at telletubby 6
     missionDelay(500);
@@ -93,24 +115,38 @@ void missionTask(void* pvParameters) {
     telemetry::nextStep();
     // distanceController.move(-0.23f);
     // turnController.turnUntil(140.0f, useless, -45.0f, 1, false);
-    turnController.turn(5.0f);
+    turnController.turn(5.0f, 3.0f);
     distanceController.moveUntil(0.3f, lineIsDetectedF, 0.6, 2, false);
     // turnController.turn();
-    lineController.followUntil(useless, 1.0f);
+    lineController.followUntil(useless, 1.1f);
     lineController.followUntil(atEnd, 4.0f, 2, 0.2f);
 
-    robotImu.setHeading(-8.2f);
-    turnController.turn(0.0f);
+    // >>> DIAG: mitigation disabled for the diagnostic runs - we need the raw
+    // drift behaviour, not a corrected version of it. RESTORE for competition.
+    // robotImu.setHeading(-8.2f);
+    // turnController.turn(0.0f);
     // robotImu.setHeading(0.0f);
-    delay(1000);
-    distanceController.move(-0.05f);
+    missionDelay(300);
+    distanceController.move(-0.05f);// xTaskCreatePinnedToCore(turnCountTestD, "TurnD", 4096, NULL, 2, NULL, 1); 
 
     turnController.turn(-90.0f);
+    missionDelay(300);
     distanceController.move(-0.115f);
-    turnController.turn(180.0f, 0.25f);
-    distanceController.moveUntil(-0.2f, eitherSwitchPressed, 0.4f, 2);
+    turnController.turn(180.0f);
+    missionDelay(300);
+    // >>> DIAG P3: park at the failure point so it can be photographed against
+    // a field wall. Everything below is unreachable until this block is removed.
+    // Motors are re-zeroed each cycle so nothing creeps while you photograph.
+    // telemetry::setActivity("PARK", 0.0f, false, nullptr);
+    // for (;;) {
+    //     leftMotor.setTargetVelocity(0.0f);
+    //     rightMotor.setTargetVelocity(0.0f);
+    //     vTaskDelay(pdMS_TO_TICKS(100));
+    // }
+    distanceController.moveUntil(-0.4f, lineIsDetectedBR, 0.12f, 2, false);
+    distanceController.moveUntil(-0.2f, eitherSwitchPressed, 0.3f, 2);
     rearClaw.close();
-    delay(400);
+    missionDelay(300);
 
     //find habitat boss
     // distanceController.move(0.1f);
@@ -128,6 +164,7 @@ void missionTask(void* pvParameters) {
     distanceController.move(-0.355f);
     turnController.turn(0.0f);
     distanceController.move(-0.13f);
+    missionDelay(200);
     rearClaw.open();
 
     // go to second habitat
@@ -135,12 +172,11 @@ void missionTask(void* pvParameters) {
     // turnController.turn(90.0f);
     // turnController.turnUntil(-150.0f, lineIsDetectedF, -40.0f, 2);
 
-    // hardcode
     distanceController.move(0.15f);
     turnController.turn(-90.0f);    
     distanceController.moveUntil(0.4f, useless, 0.2f, 1, false);
     distanceController.moveUntil(0.2f, lineIsDetectedBL, 0.36f, 2, false);
-    distanceController.move(0.05f);
+    distanceController.move(0.06f);
     // distanceController.moveUntil(0.4f, useless, 0.2f, 1, false);
     // distanceController.moveUntil(0.2f, eitherBackLine, 0.3f, 2, false);
     // distanceController.move(0.1f);
@@ -153,8 +189,9 @@ void missionTask(void* pvParameters) {
     // distanceController.move(-0.05f);
     // turnController.turn(-90.0f);
     // distanceController.move(0.115f);
-    turnController.turn(180.0f, 0.25f);
-    distanceController.moveUntil(-0.2f, eitherSwitchPressed, 0.4f, 2);
+    turnController.turn(180.0f);
+    distanceController.moveUntil(-0.4f, eitherBackLine, 0.11f, 2, false);
+    distanceController.moveUntil(-0.2f, eitherSwitchPressed, 0.3f, 2);
     rearClaw.close();
     delay(200);
 
@@ -163,137 +200,59 @@ void missionTask(void* pvParameters) {
     turnController.turn(120.0f);
     distanceController.move(0.15f);
     turnController.turnUntil(150.0f, lineIsDetectedF, 195.0f, 2);
-    // lineController.followUntil(useless, 0.2f, 1, 0.42, false);
+    lineController.followUntil(useless, 0.2f, 1, 0.42, false);
     lineController.followUntil(lineIsDetectedBR, 2.0f, 1, 0.15f);
+    // distanceController.move(0.02f);
     turnController.turn(270.0f);
-    distanceController.move(-0.2f);
+    distanceController.move(-0.21f);
     rearClaw.open();
 
     distanceController.move(0.1f);
 
     // go to third habitat
-    //turnController.turn(-40.0f);
+    //turnController.turn(-40.0f); 
     if(turnController.turnUntil(130.0f, lineIsDetectedF, -45.0f, 2) != StopReason::Event) {
         distanceController.moveUntil(0.4f, lineIsDetectedF, 0.2f, 1, false);
     }
     lineController.followUntil(atEnd, 2.0f, 1, 0.2f);
-    robotImu.setHeading(-12.0f); // second setHeading
-    turnController.turn(0.0f);
+    // robotImu.setHeading(-12.0f); // second setHeading
+    // turnController.turn(0.0f);
     distanceController.move(-0.05f);
     turnController.turn(90.0f);
-    distanceController.move(-0.33f);
+    distanceController.move(-0.375f);
     turnController.turn(180.0f, 0.25f);
-    distanceController.moveUntil(-0.2f, eitherSwitchPressed, 0.4f, 2);
+    distanceController.moveUntil(-0.4f, eitherBackLine, 0.12f, 2, false);
+    distanceController.moveUntil(-0.2f, eitherSwitchPressed, 0.3f, 2);
     rearClaw.close();
     delay(200);
 
     // find boss 3rd time
     distanceController.move(0.1f);
     turnController.turn(120.0f);
-    distanceController.move(0.35f);
+    distanceController.move(0.42f);
     // turnController.turn(180.0f);
     // distanceController.moveUntil(0.4f, lineIsDetectedF, 0.2f, 1, false);
     turnController.turnUntil(150.0f, lineIsDetectedF, 130.0f, 2);
+    lineController.followUntil(useless, 0.2f, 1, 0.42, false);
     lineController.followUntil(lineIsDetectedBR, 2.0f, 1, 0.15f);
     turnController.turn(180.0f);
     distanceController.move(0.29f);
     turnController.turn(270.0f);
     distanceController.move(-0.375f);
     turnController.turn(180.0f);
-    distanceController.move(-0.12f);
+    distanceController.move(-0.14f);
     rearClaw.open();
-    distanceController.move(0.1f);
+    distanceController.move(-0.02f, 2000);
+    distanceController.move(0.32f);
     
-
+    turnController.turn(-90.0f, 0.3f);
+    frontClaw.open();
+    distanceController.move(0.58f);
+    delay(200);
+    frontClaw.close();
+    distanceController.move(-0.2f);
 
     // END CODE HERE
-
-    // lineController.followUntil(lineIsDetectedBL, 0.8f);
-    // missionDelay(100);
-    // turnController.turn(-100.0f);
-    // distanceController.move(0.1f);
-    // // look at telletubby 6
-    // missionDelay(500);
-
-    // telemetry::nextStep();
-    // distanceController.move(-0.23f);
-    // turnController.turnUntil(140.0f, useless, -25.0f, 1, false);
-    // turnController.turnUntil(130.0f, lineIsDetectedF, 25.0f, 2, true);
-    // lineController.followUntil(useless, 0.5f, 1, false);
-    // lineController.followUntil(atEnd, 3.0f);
-
-
-
-    // distanceController.move(0.2f);
-    // turnController.turn(125.0f);
-    // distanceController.moveUntil(0.4f, lineIsDetectedF, 0.3f, false);
-
-    // lineController.followUntil(useless, 0.9f, false);
-    // lineController.followUntil(lineIsDetectedBL, 0.8f);
-    // missionDelay(100);
-    // turnController.turn(-100.0f);
-    // distanceController.move(0.1f);
-    // // look at telletubby 6
-    // missionDelay(500);
-
-    // telemetry::nextStep();
-    // distanceController.move(-0.23f);
-    // turnController.turn(0.0f);
-    // distanceController.moveUntil(0.25f, lineIsDetectedBL, 0.5f, false);
-
-    // // start solar move
-    // telemetry::nextStep();
-    // distanceController.move(0.45f);
-    // missionDelay(100);
-    // turnController.turn(-85.0f);
-    // missionDelay(200);
-    // frontClaw.open();
-    // missionDelay(800);
-    // distanceController.move(0.25f);
-    // missionDelay(300);
-
-    // // solar second try
-    // telemetry::nextStep();
-    // distanceController.move(-0.25f);
-    // missionDelay(100);
-    // turnController.turn(-80.0f);
-    // missionDelay(100);
-    // distanceController.move(0.25f);
-    // missionDelay(100);
-    // turnController.turn(-85.0f);
-    // missionDelay(100);
-    // distanceController.move(-0.25f);
-
-    // // solar third try
-    // telemetry::nextStep();
-    // missionDelay(100);
-    // turnController.turn(-80.0f);
-    // missionDelay(100);
-    // distanceController.move(0.25f);
-    // missionDelay(100);
-    // turnController.turn(-85.0f);
-    // missionDelay(100);
-    // distanceController.move(-0.25f);
-
-    // // solar fourth try
-    // telemetry::nextStep();
-    // missionDelay(100);
-    // turnController.turn(-80.0f);
-    // missionDelay(100);
-    // distanceController.move(0.25f);
-    // missionDelay(100);
-    // turnController.turn(-85.0f);
-    // missionDelay(100);
-    // distanceController.move(-0.25f);
-
-    // telemetry::nextStep();
-    // missionDelay(100);
-    // frontClaw.close();
-
-    // turnController.turnUntil(20.0f, lineIsDetectedF, 30.0f, dtMs);
-    // lineController.followUntil(lineIsDetectedBL, 0.5f, dtMs, true, 10000);
-    // turnController.turn(180.0f, dtMs, 5000);
-    // distanceController.moveUntil(-0.5f, (lineIsDetectedBR || lineIsDetectedBL), 0.5f, dtMs, false, 10000);
 
     // A FreeRTOS task must never return: park with the motors stopped.
     telemetry::setActivity("DONE", 0.0f, false, nullptr);

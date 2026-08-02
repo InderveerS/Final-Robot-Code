@@ -49,6 +49,12 @@ class Imu {
         float getRoll() const { return mRoll; }   // BNO055 Euler y
         float getPitch() const { return mPitch; } // BNO055 Euler z
 
+        // Roll/pitch peak-to-peak since the previous call, then rearms. update()
+        // runs at 100 Hz and the log samples ~22 Hz, so instantaneous roll/pitch
+        // alias away chassis rocking entirely; these brackets do not. Call from
+        // ONE reader only (the logging task) - each call consumes the window.
+        void takeAttitudePeaks(float& rollPP, float& pitchPP);
+
         // Diagnostics: the internals behind the hybrid heading, so a log can
         // tell "the turn controller missed" apart from "getHeading() lied".
         // All cached from the last update() - no I2C, safe from any task.
@@ -72,6 +78,10 @@ class Imu {
         float mHeading = 0.0f;   // accumulated continuous heading (deg)
         float mRoll = 0.0f;      // fused Euler roll (deg), gravity-referenced
         float mPitch = 0.0f;     // fused Euler pitch (deg), gravity-referenced
+        // Running attitude brackets, drained by takeAttitudePeaks(). Seeded
+        // inverted so the first update() sets both ends.
+        float mRollMin = 1e9f,  mRollMax = -1e9f;
+        float mPitchMin = 1e9f, mPitchMax = -1e9f;
         float mGyroBias = 0.0f;  // gyro-z rest bias (deg/s), captured in begin()
         float mLastRate = 0.0f;  // previous rate sample (deg/s), for trapezoid
         float mLastEuler = 0.0f; // previous fused Euler heading (deg, CCW+)

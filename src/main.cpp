@@ -8,21 +8,25 @@ void setup() {
 
     // Sensor task: the ONLY task that touches the IMU/I2C. Core 0, high priority
     // so heading stays sampled on schedule; everything else reads cached values.
-    xTaskCreatePinnedToCore(imuTask, "IMU Task", 4096, NULL, 3, NULL, 0);
+    xTaskCreatePinnedToCore(imuTask, "IMU Task", 4096, NULL, 4, NULL, 0);
 
     // Mission task: owns the motors for the whole run. Core 1.
-    xTaskCreatePinnedToCore(missionTask, "Mission Task", 4096, NULL, 2, NULL, 1);
+    xTaskCreatePinnedToCore(missionTask, "Mission Task", 4096, NULL, 3, NULL, 1);
 
     // To run a diagnostic instead: comment out the mission task above and start
     // ONE task from diagnostics.hpp here. The self-updating tests (turn/distance/
     // nav) must run WITHOUT the imuTask above. Pair a step-response test with
     // csvLogLoop() in loop(); the duty sweep and log helpers print themselves.
 
-    xTaskCreatePinnedToCore(espLoggingTask, "ESP Log", 4096, NULL, 1, NULL, 0);
+    // xTaskCreatePinnedToCore(espLoggingTask, "ESP Log", 4096, NULL, 1, NULL, 0);
 
     //xTaskCreatePinnedToCore(turnTestTask, "Turn Test", 4096, NULL, 1, NULL, 1);
 
-    //xTaskCreatePinnedToCore(servoTestTask, "Servo Test", 4096, NULL, 1, NULL, 1);
+    // xTaskCreatePinnedToCore(servoTestTask, "Servo Test", 4096, NULL, 1, NULL, 1);
+
+    // xTaskCreatePinnedToCore(turnCountTestC, "TurnC", 4096, NULL, 2, NULL, 1);
+
+    // xTaskCreatePinnedToCore(turnCountTestB, "TurnB", 4096, NULL, 2, NULL, 1);
 }
 
 

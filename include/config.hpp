@@ -103,7 +103,7 @@ constexpr int IMU_GYRO_BIAS_SAMPLES = 100; // x CONTROL_PERIOD_MS of rest averag
 // data point is 0.82% under-count at 140 deg/s (LOG175), so moving ~800 deg of
 // rotation onto the fused path in that band was a guess. Do not raise this
 // again without first measuring Euler against the gyro across 40-100 deg/s.
-constexpr float IMU_FUSION_HANDOFF_DPS = 40.0f; // above this, integrate raw gyro
+constexpr float IMU_FUSION_HANDOFF_DPS = 20.0f; // above this, integrate raw gyro
 // 50, was 500. The hold existed to avoid double-counting the fusion's catch-up
 // slew after a fast turn - but that slew does not happen on this chip, measured
 // two ways. (a) During a hold, euler and heading track to within 0.2 deg over
@@ -120,7 +120,7 @@ constexpr float IMU_FUSION_HANDOFF_DPS = 40.0f; // above this, integrate raw gyr
 // Cannot be 0: the test is `now - mLastFastMicros < RESUME_MS`, so zero is false
 // even on the sample that sets mLastFastMicros and the gyro path would never
 // engage at all. 50 ms is 5 control cycles - enough to ride out rate jitter.
-constexpr uint16_t IMU_EULER_RESUME_MS = 50;    // gyro-path hold after a fast turn
+constexpr uint16_t IMU_EULER_RESUME_MS = 100;    // gyro-path hold after a fast turn
 
 // There is deliberately NO continuous bias tracking. An EMA gated on "Euler
 // path AND |rate| < 2 deg/s" was tried and removed: driving straight satisfies
@@ -144,13 +144,13 @@ constexpr float IR_SENSOR_WIDTH_MM = 10.0f; // spacing between sensors
 
 // ---- Servo (front claw) ----
 constexpr uint8_t FRONT_CLAW_PIN = 15;
-constexpr uint8_t FRONT_CLAW_MIN_ANGLE = 7;
-constexpr uint8_t FRONT_CLAW_MAX_ANGLE = 110;
+constexpr uint8_t FRONT_CLAW_MIN_ANGLE = 10;
+constexpr uint8_t FRONT_CLAW_MAX_ANGLE = 135;
 
 // ---- Servo (rear claw) ----
 constexpr uint8_t REAR_CLAW_PIN = 8; 
 constexpr uint8_t REAR_CLAW_MIN_ANGLE = 5;
-constexpr uint8_t REAR_CLAW_MAX_ANGLE = 177;
+constexpr uint8_t REAR_CLAW_MAX_ANGLE = 180;
 
 // ---- ESP-CAM ----
 constexpr HardwareSerial* ESP_SERIAL = &Serial1; // pointer (a constexpr ref can't bind Serial1); deref at use
@@ -185,21 +185,21 @@ constexpr float DIST_VEL_MIN = -0.5f;
 constexpr float DIST_MIN_VEL = 0.12f;           // breakaway floor
 constexpr float DIST_MAX_HEADING_OMEGA = 85.0f; // deg/s
 constexpr float DIST_SETTLE_TOLERANCE = 0.005f;  // m
-constexpr int DIST_SETTLE_CYCLES = 10;
+constexpr int DIST_SETTLE_CYCLES = 14;
 
 // ---- Turn controller ----
 constexpr float TURN_KP = 5.0f;
 constexpr float TURN_KI = 0.0f;
 constexpr float TURN_KD = 0.8f;
 constexpr float TURN_ALPHA = 0.25f;
-constexpr float TURN_MAX_OMEGA = 170.0f;       // deg/s
+constexpr float TURN_MAX_OMEGA = 160.0f;       // deg/s
 constexpr float TURN_MIN_OMEGA = 60.0f;        // deg/s breakaway floor
 constexpr float TURN_SETTLE_TOLERANCE = 0.5f;  // deg
-constexpr int TURN_SETTLE_CYCLES = 10;
+constexpr int TURN_SETTLE_CYCLES = 12;
 
 // ---- User Input Module ----
-constexpr uint8_t USER_INPUT_RAW = 10;
-// constexpr uint8_t TELETUBBY_LED = 11;
+constexpr uint8_t USER_INPUT_RAW = 9;
+constexpr uint8_t TELETUBBY_LED = 10;
 // constexpr uint8_t TELETUBBY_SPEAKER = 13;
 
 } // namespace cfg

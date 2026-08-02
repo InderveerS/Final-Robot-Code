@@ -16,8 +16,8 @@ class ServoMotor {
         void write(int angle);           // 0..180 degrees
         void writeMicroseconds(int us);  // raw pulse width
         int read() const { return mLastAngle; } // last angle commanded
-        void open(uint8_t stepDelayMs = 10);
-        void close(uint8_t stepDelayMs = 10);
+        void open(uint8_t stepDelayMs = 5);
+        void close(uint8_t stepDelayMs = 5);
         void detach();                   // release the pin (servo goes limp)
 
     private:

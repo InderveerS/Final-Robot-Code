@@ -55,11 +55,24 @@ void Imu::update() {
     // Rate register: deg/s, no fusion pipeline, valid to +/-2000 deg/s.
     float rawZ = (float)bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE).z();
     float rate = cfg::IMU_GYRO_SIGN * cfg::IMU_GYRO_SCALE * (rawZ - mGyroBias);
-    // Fused Euler vector (one read): x = heading, y = roll, z = pitch.
+
+    if(fabsf(rate) < 0.5f) {
+        rate = 0.0f;
+    }
+    // Fused Euler vector (one readf): x = heading, y = roll, z = pitch.
     auto eulerVec = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
     float euler = cfg::IMU_EULER_SIGN * (float)eulerVec.x(); // heading, CCW-positive
     mRoll = (float)eulerVec.y();                    // gravity-referenced, cache raw
     mPitch = (float)eulerVec.z();
+
+    // Attitude peaks since the last takeAttitudePeaks(). update() runs at 100 Hz
+    // but the log samples ~22 Hz, so a rocking chassis (one wheel off the ground
+    // on the ramp) is aliased away entirely by the instantaneous values. These
+    // brackets survive the undersampling.
+    if (mRoll  < mRollMin)  mRollMin  = mRoll;
+    if (mRoll  > mRollMax)  mRollMax  = mRoll;
+    if (mPitch < mPitchMin) mPitchMin = mPitch;
+    if (mPitch > mPitchMax) mPitchMax = mPitch;
 
     if (mFirstRead) {
         mLastMicros = nowMicros;
@@ -96,6 +109,19 @@ void Imu::update() {
     mLastEuler = euler;
     // No bias tracking here - see the note in config.hpp for what was tried and
     // why it was removed. mGyroBias is set once by captureBias() and held.
+}
+
+// Returns roll/pitch peak-to-peak since the previous call, then rearms. Coning
+// error - the spurious yaw an integrator accumulates when a body rotates about
+// two axes at once - scales with the SQUARE of that amplitude, so this is the
+// quantity that matters when asking whether the ramp is corrupting heading.
+// Reading the instantaneous roll/pitch at log rate cannot answer that.
+void Imu::takeAttitudePeaks(float& rollPP, float& pitchPP) {
+    // Guard the first call, before update() has bracketed anything.
+    rollPP  = (mRollMax  >= mRollMin)  ? (mRollMax  - mRollMin)  : 0.0f;
+    pitchPP = (mPitchMax >= mPitchMin) ? (mPitchMax - mPitchMin) : 0.0f;
+    mRollMin = mPitchMin = 1e9f;
+    mRollMax = mPitchMax = -1e9f;
 }
 
 // Re-references the heading estimate to a known absolute field heading. Use it

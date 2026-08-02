@@ -28,6 +28,20 @@ void navTask(void* pvParameters);
 // Motor feedforward calibration: steps duty 0..100, prints "duty, vL, vR".
 void dutySweepTask(void* pvParameters);
 
+// Per-turn error accumulation. Both rotate 360 deg total and end at the START
+// orientation, so any physical offset from a start mark is accumulated error -
+// A in 4 turns, B in 36. Error scaling with turn COUNT rather than total angle
+// means something is injected once per turn. Run ONE of these instead of the
+// mission (they park at the end so the robot can be photographed), 3 repeats
+// each, and measure physically - the IMU reports ~360 either way by design.
+void turnCountTestA(void* pvParameters); // 4 x 90 deg,  360 total, net 360
+void turnCountTestB(void* pvParameters); // 36 x 10 deg, 360 total, net 360
+void turnCountTestC(void *pvParameters); // 36 x 90 deg, 3240 total, net 3240
+// D matches C in total rotation, turn count and duration but nets to ZERO, so a
+// scale error cancels and only time-based bias drift survives. On the mark ->
+// scale (trim IMU_GYRO_SCALE); off the mark -> drift (scale trim won't help).
+void turnCountTestD(void* pvParameters); // 36 x +/-90, 3240 total, net 0
+
 // UART comms with ESPCAM for SD logging (ESPCAM has SD port)
 void espLoggingTask(void* pvParameters);
 
