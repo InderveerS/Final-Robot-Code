@@ -1,11 +1,16 @@
 #pragma once
 #include <stdint.h>
+#include "linkMode.hpp"
 
 // Generic, global activity telemetry: the blocking primitives and the mission
 // write "what am I doing right now" here, and espLoggingTask reads it.
-// Set TELEMETRY_ENABLED to 0 to strip every hook below to a no-op (the empty
-// inline calls compile away, so zero runtime cost when logging is off).
-#define TELEMETRY_ENABLED 1
+// Every hook below strips to a no-op when disabled (the empty inline calls
+// compile away, so zero runtime cost when logging is off).
+//
+// Tied to the link mode rather than set by hand: the sd_logging board is the
+// only thing that consumes these rows, so in vision mode nothing is listening
+// and the rows would just burn CPU on a wire carrying detections the other way.
+#define TELEMETRY_ENABLED (ESP_LINK_MODE == ESP_LINK_SD)
 
 namespace telemetry {
 

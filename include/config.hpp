@@ -4,6 +4,7 @@
 #include "driver/adc.h"
 #include "driver/mcpwm.h"
 #include "driver/pcnt.h"
+#include "linkMode.hpp"
 
 // Single source of truth for pins, peripheral assignments, physical constants,
 // and every tuning value. Classes keep their named constants but source the
@@ -95,7 +96,45 @@ constexpr uint32_t IMU_I2C_CLOCK_HZ = 400000UL; // drop to 100000 if flaky
 constexpr float IMU_GYRO_SIGN = 1.0f;   // flip if CCW rotation decreases heading
 constexpr float IMU_EULER_SIGN = -1.0f; // Euler heading is CW-positive
 constexpr float IMU_GYRO_SCALE = 0.974f; // sensitivity trim, (N*360)/reported
-constexpr int IMU_GYRO_BIAS_SAMPLES = 100; // x CONTROL_PERIOD_MS of rest averaging
+// Same trim for the OTHER path. The gyro branch has been scaled since forever
+// and the Euler branch never was, which is why the two disagree on how far the
+// robot turned - and why turnCountTestB (small turns, mostly below the handoff,
+// so Euler-dominated) misses while turnCountTestD (nets zero, so any scale
+// cancels) passes. 1.0 = today's behaviour.
+//
+// Fit it on B under the hybrid: EULER_SCALE = (360 + E) / 360, where E is B's
+// signed physical offset from the floor mark, positive if the robot rotated
+// PAST it. B is not purely Euler-carried, so expect to iterate once or twice -
+// re-run B after each change. Confirm against D, which must stay on the mark.
+constexpr float IMU_EULER_SCALE = 1.0f;
+// 400, was 100. 100 samples is a 1 s average, and the gyro's own noise makes
+// that uncertain to ~0.02 deg/s - measured directly, four consecutive boots
+// gave -0.0044, +0.0037, +0.0144, -0.0275. That is not the bias moving, it is
+// the standard error of too short an average, and under IMU_GYRO_ONLY it
+// integrates for the whole run (~1.8 deg over 90 s). Averaging is sqrt(N), so
+// 4x the samples halves it, at the cost of 3 s more boot on top of the 5 s
+// settle we already wait.
+constexpr int IMU_GYRO_BIAS_SAMPLES = 500; // x CONTROL_PERIOD_MS of rest averaging
+// Boot-capture sanity threshold. captureBias() averages 1 s and the result is
+// then HELD for the whole run - a poisoned capture (robot nudged during the
+// settle) integrates for the entire mission with nothing to catch it. A good
+// capture on this robot is ~0.008 deg/s; a known-bad one was 0.042. If the boot
+// value exceeds this the front claw parks halfway open for 2 s in robotBegin()
+// so it is visible without a laptop. Diagnostic only - nothing is corrected.
+constexpr float GYRO_BIAS_WARN_DPS = 0.03f;
+
+// Physical-plausibility limits. I2C carries no data checksum, so a bit flip in
+// the data phase ACKs normally and returns a WRONG value - not the (0,0,0) a
+// failed transaction gives. One corrupted gyro sample at 10 ms injects
+// (value/100) degrees straight into the heading and nothing downstream can tell.
+//
+// The robot never commands more than TURN_MAX_OMEGA (160 deg/s), so anything
+// past this is impossible rather than merely unusual. Same for the Euler delta:
+// at 500 deg/s one 10 ms step is 5 deg, so 30 leaves room for a missed sample
+// or two. Readings past these are counted AND rejected - integrating a
+// known-impossible value is never the right answer.
+constexpr float IMU_MAX_RATE_DPS = 500.0f;
+constexpr float IMU_MAX_EULER_STEP_DEG = 30.0f;
 // 40, NOT 80. Raising it to 80 - to keep more rotation on the drift-free fused
 // path - measurably backfired: LOG177 regressed heading-vs-euler divergence
 // from +1.50 to -3.40 deg and the last turn was visibly ~5 deg out. Euler
@@ -103,7 +142,32 @@ constexpr int IMU_GYRO_BIAS_SAMPLES = 100; // x CONTROL_PERIOD_MS of rest averag
 // data point is 0.82% under-count at 140 deg/s (LOG175), so moving ~800 deg of
 // rotation onto the fused path in that band was a guess. Do not raise this
 // again without first measuring Euler against the gyro across 40-100 deg/s.
-constexpr float IMU_FUSION_HANDOFF_DPS = 20.0f; // above this, integrate raw gyro
+constexpr float IMU_FUSION_HANDOFF_DPS = 1.0f; // above this, integrate raw gyro
+
+// Gyro-only trial. true = never use the Euler path; integrate the rate register
+// for everything, so ONE scale factor applies to all rotation.
+//
+// Why this is worth trying: the two paths do not just differ in source, they
+// differ in SCALE - the gyro path multiplies by IMU_GYRO_SCALE and the Euler
+// path does not. The handoff is 20 deg/s while heading-hold corrections reach
+// DIST_MAX_HEADING_OMEGA (85), so the robot crosses the threshold constantly
+// during ordinary straight driving and the effective scale for a run depends on
+// how hard the PID happened to correct. That is a run-to-run variance source
+// with identical code.
+//
+// What it gives up: Euler deltas are drift-free at rest because the chip keeps
+// re-estimating its own gyro bias, while integrating rate accumulates
+// bias x time. With the IMUPLUS calibration running that residual is ~0.008
+// deg/s, so roughly 0.7 deg over a 90 s run.
+//
+// NOT a differentiator either way: the ~2.5x under-report of slow rotation at
+// 1-2 deg/s is present in the rate register AND the fused output, so it costs
+// the same on both paths.
+//
+// Run turnCountTestD first - it nets zero rotation, so time-based (bias) error
+// survives it and rotation-based (scale) error cancels. Off the mark means bias
+// and this flag will not help; on the mark means scale and it should.
+constexpr bool IMU_GYRO_ONLY = false;
 // 50, was 500. The hold existed to avoid double-counting the fusion's catch-up
 // slew after a fast turn - but that slew does not happen on this chip, measured
 // two ways. (a) During a hold, euler and heading track to within 0.2 deg over
@@ -120,7 +184,7 @@ constexpr float IMU_FUSION_HANDOFF_DPS = 20.0f; // above this, integrate raw gyr
 // Cannot be 0: the test is `now - mLastFastMicros < RESUME_MS`, so zero is false
 // even on the sample that sets mLastFastMicros and the gyro path would never
 // engage at all. 50 ms is 5 control cycles - enough to ride out rate jitter.
-constexpr uint16_t IMU_EULER_RESUME_MS = 100;    // gyro-path hold after a fast turn
+constexpr uint16_t IMU_EULER_RESUME_MS = 1;    // gyro-path hold after a fast turn
 
 // There is deliberately NO continuous bias tracking. An EMA gated on "Euler
 // path AND |rate| < 2 deg/s" was tried and removed: driving straight satisfies
@@ -146,6 +210,10 @@ constexpr float IR_SENSOR_WIDTH_MM = 10.0f; // spacing between sensors
 constexpr uint8_t FRONT_CLAW_PIN = 15;
 constexpr uint8_t FRONT_CLAW_MIN_ANGLE = 10;
 constexpr uint8_t FRONT_CLAW_MAX_ANGLE = 135;
+// Halfway. With no SD logging and no laptop at the field, the claw parking here
+// at the end of a run is the readout for "the IMU dropped I2C reads" - see the
+// park loop in mission.cpp. Derived so it stays centred if the limits change.
+constexpr uint8_t FRONT_CLAW_FAULT_ANGLE = (FRONT_CLAW_MIN_ANGLE + FRONT_CLAW_MAX_ANGLE) / 2;
 
 // ---- Servo (rear claw) ----
 constexpr uint8_t REAR_CLAW_PIN = 8; 
@@ -156,7 +224,11 @@ constexpr uint8_t REAR_CLAW_MAX_ANGLE = 180;
 constexpr HardwareSerial* ESP_SERIAL = &Serial1; // pointer (a constexpr ref can't bind Serial1); deref at use
 constexpr uint8_t ESP_RX_PIN = 12; // 12 = 47
 constexpr uint8_t ESP_TX_PIN = 11; // 11 = 21
-constexpr uint32_t ESP_BAUD = 230400; // must match the ESP-CAM's UART baud
+// Must match the ESP-CAM's UART baud. The vision board is deliberately slower:
+// plain TTL over a long wire has no noise rejection and motor wiring couples
+// straight in, and 29-char detection lines need no bandwidth. Drop BOTH ends
+// to 38400 if visionMonitorLoop() shows the checksum failure count climbing.
+constexpr uint32_t ESP_BAUD = (ESP_LINK_MODE == ESP_LINK_VISION) ? 57600 : 230400;
 
 // ---- Switches ----
 constexpr uint8_t BACK_RIGHT_SWITCH_PIN = 7;
@@ -201,5 +273,29 @@ constexpr int TURN_SETTLE_CYCLES = 12;
 constexpr uint8_t USER_INPUT_RAW = 9;
 constexpr uint8_t TELETUBBY_LED = 10;
 // constexpr uint8_t TELETUBBY_SPEAKER = 13;
+
+// ---- Teletubby vision ----
+// 6 candidate spots, 2 teletubbies. Once both are found every remaining spot is
+// skipped outright - see the scan blocks in mission.cpp.
+constexpr uint8_t TUBBY_TARGET_COUNT = 2;
+constexpr uint8_t TUBBY_MIN_CONF = 120;      // raw 0-255 from the CAM; tune on the bench
+// Two frames from DIFFERENT seq values must agree before a colour is believed.
+// The XOR checksum catches every single-bit error but a two-bit error in the
+// same column passes it, so agreement is the real defence against a bad line.
+constexpr uint8_t TUBBY_CONFIRM_FRAMES = 2;
+// Frames thrown away after the aim turn stops. A frame arriving now was exposed
+// earlier, possibly mid-rotation; counting in frames rather than ms means this
+// self-adapts to whatever rate the CAM actually runs at.
+constexpr uint8_t TUBBY_BLANK_FRAMES = 2;
+constexpr uint16_t TUBBY_LOOK_TIMEOUT_MS = 700; // give up on a spot
+constexpr uint16_t TUBBY_STALE_MS = 300;        // no valid line this long = link down
+constexpr uint16_t TUBBY_DWELL_MS = 500;        // SD-mode fallback dwell (today's value)
+constexpr uint16_t TUBBY_LED_ON_MS = 150;
+constexpr uint8_t TUBBY_LED_FLASHES = 2;
+// Fast-follow distance after the back corner when spot 6 is SKIPPED - the robot
+// rejoins the line further back than on the scan path, so it is not the same
+// number. The follow after it is event-terminated with a 4 m cap, so too short
+// only costs time. Measure and lengthen; do not guess long.
+constexpr float TUBBY6_SKIP_FOLLOW_M = 1.1f;
 
 } // namespace cfg

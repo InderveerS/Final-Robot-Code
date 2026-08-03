@@ -49,6 +49,22 @@ void robotBegin() {
     // stationary here.
     robotImu.captureBias();
 
+    // Bias readout, visible without a laptop: the claw parks halfway open if
+    // the boot capture looks wrong. mGyroBias is held constant for the whole
+    // run, so a bad capture here is a heading error that grows all mission.
+    //
+    // Close FIRST so mid-travel is unambiguous. ServoMotor starts at
+    // mLastAngle = 90, which is also mid-travel, and on a diagnostic run (no
+    // missionTask) nothing else ever commands the claw - so without this a
+    // never-commanded servo is indistinguishable from a fired warning.
+    frontClaw.close();
+    Serial.printf("[IMU] boot gyro bias %.4f deg/s (warn above %.3f)\n",
+                  robotImu.getGyroBias(), cfg::GYRO_BIAS_WARN_DPS);
+    if (fabsf(robotImu.getGyroBias()) > cfg::GYRO_BIAS_WARN_DPS) {
+        frontClaw.write(cfg::FRONT_CLAW_FAULT_ANGLE);
+        delay(2000); // the mission closes it again right after; a diag run holds it
+    }
+
     leftMotor.resetPID();
     rightMotor.resetPID();
 }

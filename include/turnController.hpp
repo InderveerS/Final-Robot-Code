@@ -26,7 +26,11 @@ class TurnController {
         //     can be stepped over - which is why tight turns hunt and sometimes
         //     time out. Loosen it where a degree does not matter to buy speed
         //     and reliability; tighten it only where accuracy really pays.
-        void turn(float absHeadingDeg, float settleTolerance = cfg::TURN_SETTLE_TOLERANCE,
+        // Returns TRUE if it settled, FALSE if it hit the timeout. A timed-out
+        // turn stops the motors wherever it happened to be and the caller
+        // carries on, so a silent timeout is a large heading error that looks
+        // exactly like an IMU fault. Existing call sites can ignore this.
+        bool turn(float absHeadingDeg, float settleTolerance = cfg::TURN_SETTLE_TOLERANCE,
                   uint16_t timeoutMs = 10000, uint16_t delayMs = cfg::CONTROL_PERIOD_MS);
 
         // Blocking: spins in place at a CONSTANT rate (independent of the

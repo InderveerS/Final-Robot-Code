@@ -2,6 +2,7 @@
 #include "robot.hpp"
 #include "mission.hpp"
 #include "diagnostics.hpp"
+#include "vision.hpp"
 
 void setup() {
     robotBegin();
@@ -11,14 +12,20 @@ void setup() {
     xTaskCreatePinnedToCore(imuTask, "IMU Task", 4096, NULL, 4, NULL, 0);
 
     // Mission task: owns the motors for the whole run. Core 1.
-    xTaskCreatePinnedToCore(missionTask, "Mission Task", 4096, NULL, 3, NULL, 1);
+    // xTaskCreatePinnedToCore(missionTask, "Mission Task", 4096, NULL, 3, NULL, 1);
 
     // To run a diagnostic instead: comment out the mission task above and start
     // ONE task from diagnostics.hpp here. The self-updating tests (turn/distance/
     // nav) must run WITHOUT the imuTask above. Pair a step-response test with
     // csvLogLoop() in loop(); the duty sweep and log helpers print themselves.
 
-    // xTaskCreatePinnedToCore(espLoggingTask, "ESP Log", 4096, NULL, 1, NULL, 0);
+    // Serial1 carries EITHER the CSV out to the sd_logging board OR detections
+    // in from the vision CAM - never both. Flip ESP_LINK_MODE in linkMode.hpp.
+#if ESP_LINK_MODE == ESP_LINK_VISION
+    xTaskCreatePinnedToCore(visionTask, "Vision", 3072, NULL, 1, NULL, 0);
+#else
+    xTaskCreatePinnedToCore(espLoggingTask, "ESP Log", 4096, NULL, 1, NULL, 0);
+#endif
 
     //xTaskCreatePinnedToCore(turnTestTask, "Turn Test", 4096, NULL, 1, NULL, 1);
 
@@ -27,10 +34,20 @@ void setup() {
     // xTaskCreatePinnedToCore(turnCountTestC, "TurnC", 4096, NULL, 2, NULL, 1);
 
     // xTaskCreatePinnedToCore(turnCountTestB, "TurnB", 4096, NULL, 2, NULL, 1);
+
+    xTaskCreatePinnedToCore(turnCountTestD, "TurnD", 4096, NULL, 2, NULL, 1);
 }
 
 
 void loop() {
+
+    // Serial.print(robotImu.getRate());
+
+    // Serial.print(", ");
+
+    // Serial.println(robotImu.getHeading());
+
+    // delay(50);
 
     // farSensorCalibrateLoop();
     // delay(30);

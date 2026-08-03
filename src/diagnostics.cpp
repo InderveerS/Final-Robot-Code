@@ -2,6 +2,21 @@
 #include "robot.hpp"
 #include "telemetry.hpp"
 #include "mission.hpp"
+#include "vision.hpp"
+
+void visionMonitorLoop() {
+    VisionSample s;
+    const unsigned long good = (unsigned long)vision.goodCount();
+    const unsigned long bad = (unsigned long)vision.badCount();
+
+    if (vision.snapshot(s)) {
+        Serial.printf("seq %5u  mask %02X  best %3u  conf %3u  | good %lu bad %lu\n",
+                      s.seq, s.mask, s.best, s.conf, good, bad);
+    } else {
+        Serial.printf("no valid line yet | good %lu bad %lu\n", good, bad);
+    }
+    delay(200);
+}
 
 // Targets for the single-primitive step-response tests.
 static const float TEST_TURN_DEG = -45; // + is CCW
@@ -37,7 +52,7 @@ volatile int dbgSettled = 0;
 // as the mission checkpoints, 3 repeats each. Start with the robot stationary.
 // ---------------------------------------------------------------------------
 static constexpr float TURN_TEST_TOLERANCE = cfg::TURN_SETTLE_TOLERANCE;
-static constexpr uint16_t TURN_TEST_SETTLE_MS = 250; // let the chassis stop between turns
+static constexpr uint16_t TURN_TEST_SETTLE_MS = 500; // let the chassis stop between turns
 
 // Shared body so the variants cannot drift apart in semantics. Never returns -
 // parks with the motors held at zero so the robot can be photographed.
@@ -56,18 +71,67 @@ static void runTurnCountTest(const char* name, float stepDeg, int steps,
     Serial.printf("\n%s: start heading %.2f | %d steps of %.1f deg | total %.0f, net %.0f\n",
                   name, h0, steps, stepDeg, stepDeg * steps, netDeg);
 
+    // Per-step diagnostics. A 45 deg miss over 36 turns is either ~1.2 deg every
+    // turn or one turn losing the lot - those need completely different fixes,
+    // and the summary at the end cannot tell them apart. resid is what the turn
+    // gave up on; settled=0 means it hit the timeout instead of arriving, which
+    // is a controller failure that looks exactly like an IMU fault from outside.
+    robotImu.resetFaultCounts();
+    const uint32_t t0 = millis();
+    int timeouts = 0;
+    uint32_t lastGyroF = 0, lastEulerF = 0;
+    float worstSpring = 0.0f, springSum = 0.0f;
+    Serial.println("step,target,heading,resid,spring,settled,gyro000,euler000,maxDtMs");
+
     for (int i = 1; i <= steps; i++) {
         // Absolute target. turnTo() takes the shortest path, so cumulative gives
         // a +stepDeg move each time, and alternating gives +step, -step, +step...
         const float target = alternate ? (h0 + stepDeg * (float)(i & 1))
                                        : (h0 + stepDeg * (float)i);
-        turnController.turn(target, TURN_TEST_TOLERANCE);
+        const bool settled = turnController.turn(target, TURN_TEST_TOLERANCE);
+        if (!settled) timeouts++;
+
+        // Heading the instant the controller let go, before the dwell. The
+        // difference against h below is rotation that happened with the motors
+        // already stopped - tyre wind-up unwinding after a point turn. It is
+        // real motion the IMU measures correctly, and nothing corrects it
+        // because the turn is over; the NEXT absolute target takes it out. So it
+        // shows up only in the FINAL position, with a random sign.
+        const float hSettle = robotImu.getHeading();
         vTaskDelay(pdMS_TO_TICKS(TURN_TEST_SETTLE_MS));
+
+        // Printed with the motors stopped, between turns, so it cannot stall one.
+        const float h = robotImu.getHeading();
+        const float spring = h - hSettle;
+        if (fabsf(spring) > fabsf(worstSpring)) worstSpring = spring;
+        springSum += fabsf(spring);
+        const uint32_t gf = robotImu.getGyroFaults();
+        const uint32_t ef = robotImu.getEulerFaults();
+        Serial.printf("%d,%.2f,%.2f,%.2f,%.2f,%d,%lu,%lu,%.1f\n",
+                      i, target, h, target - h, spring, settled ? 1 : 0,
+                      (unsigned long)(gf - lastGyroF), (unsigned long)(ef - lastEulerF),
+                      robotImu.getMaxDtUs() / 1000.0f);
+        lastGyroF = gf;
+        lastEulerF = ef;
     }
 
+    const uint32_t elapsedMs = millis() - t0;
     const float h1 = robotImu.getHeading();
-    Serial.printf("%s: DONE. IMU heading %.2f, IMU thinks it moved %.2f (net commanded %.1f)\n",
-                  name, h1, h1 - h0, netDeg);
+    Serial.printf("%s: DONE in %.1f s. IMU heading %.2f, IMU thinks it moved %.2f (net commanded %.1f)\n",
+                  name, elapsedMs / 1000.0f, h1, h1 - h0, netDeg);
+    Serial.printf("  timeouts %d/%d | gyro(0,0,0) %lu | euler(0,0,0) %lu | updates %lu | maxDt %.1f ms\n",
+                  timeouts, steps,
+                  (unsigned long)robotImu.getGyroFaults(),
+                  (unsigned long)robotImu.getEulerFaults(),
+                  (unsigned long)robotImu.getUpdates(),
+                  robotImu.getMaxDtUs() / 1000.0f);
+    Serial.printf("  GLITCHES rejected: rate %lu (worst %.1f deg/s) | euler %lu (worst %.1f deg)\n",
+                  (unsigned long)robotImu.getRateGlitches(), robotImu.getWorstRate(),
+                  (unsigned long)robotImu.getEulerGlitches(), robotImu.getWorstEulerStep());
+    // Post-turn springback. Only the LAST turn's is uncorrected, so mean|spring|
+    // is roughly the noise floor this test can ever reach.
+    Serial.printf("  springback: mean |%.2f| deg, worst %.2f deg over %d turns\n",
+                  springSum / (float)steps, worstSpring, steps);
     Serial.println("Photograph the chassis against the wall now - the physical");
     Serial.println("offset from the start mark is the accumulated error.\n");
 

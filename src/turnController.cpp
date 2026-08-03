@@ -47,7 +47,7 @@ void TurnController::update() {
     }
 }
 
-void TurnController::turn(float absHeadingDeg, float settleTolerance,
+bool TurnController::turn(float absHeadingDeg, float settleTolerance,
                           uint16_t timeoutMs, uint16_t delayMs) {
     telemetry::setActivity("TURN", absHeadingDeg, false, nullptr);
     TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -73,6 +73,8 @@ void TurnController::turn(float absHeadingDeg, float settleTolerance,
     // Stop so a finished or timed-out turn doesn't keep commanding the motors.
     LeftMotor.setTargetVelocity(0.0f);
     RightMotor.setTargetVelocity(0.0f);
+
+    return isSettled();
 }
 
 StopReason TurnController::turnUntil(float omegaDps, bool (*event)(), float maxAngle,

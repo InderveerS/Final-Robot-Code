@@ -17,6 +17,14 @@ bool Imu::begin() {
     Wire.begin(cfg::IMU_SDA_PIN, cfg::IMU_SCL_PIN);
     Wire.setClock(cfg::IMU_I2C_CLOCK_HZ);
 
+    // The ~27 "i2cWriteReadNonStop returned Error -1" lines at every boot are
+    // NORMAL and need no fix. Adafruit's begin() soft-resets the chip
+    // (SYS_TRIGGER 0x20) and then polls the chip ID every 10 ms until it comes
+    // back; each poll during the reset fails and the ESP32 Wire driver prints.
+    // A delay here only moves them later. begin() cannot return until the ID
+    // reads back, so setExtCrystalUse() below is always on an awake chip.
+    // Errors AFTER this window are real - leave the logging on so they show.
+
     // Still IMUPLUS mode: we no longer use the fused Euler output (it loses
     // angle during fast rotation), but running the fusion keeps the chip's
     // own continuous gyro calibration active. The magnetometer stays unused -
@@ -52,15 +60,49 @@ void Imu::captureBias() {
 
 void Imu::update() {
     uint32_t nowMicros = micros();
+
+    // Scheduling health, measured before anything else can distort it.
+    mUpdates = mUpdates + 1;
+    if (!mFirstRead) {
+        uint32_t dt = nowMicros - mLastMicros; // unsigned, correct across wrap
+        if (dt > mMaxDtUs) mMaxDtUs = dt;
+    }
+
     // Rate register: deg/s, no fusion pipeline, valid to +/-2000 deg/s.
-    float rawZ = (float)bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE).z();
+    auto gyroVec = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
+    // getVector() zeroes its buffer and throws away readLen()'s success flag, so
+    // a failed I2C read is returned as (0,0,0) with no way to tell it from data.
+    // Exact compares are right: the values are int16/16.0, so zero is exact.
+    // Ambiguous at rest (a still chip really can read 0 on all three), which is
+    // why this is counted apart from the Euler one.
+    if (gyroVec.x() == 0.0 && gyroVec.y() == 0.0 && gyroVec.z() == 0.0) {
+        mGyroFaults = mGyroFaults + 1;
+    }
+    float rawZ = (float)gyroVec.z();
     float rate = cfg::IMU_GYRO_SIGN * cfg::IMU_GYRO_SCALE * (rawZ - mGyroBias);
 
-    if(fabsf(rate) < 0.5f) {
+    // Impossible rate: the turn PID is clamped to TURN_MAX_OMEGA, so nothing
+    // the robot does gets near this. A value out here is corruption that passed
+    // I2C framing, not motion. Hold the previous sample rather than integrate
+    // it - one cycle of staleness is 1.6 deg at worst, the glitch is far more.
+    if (fabsf(rate) > cfg::IMU_MAX_RATE_DPS) {
+        if (fabsf(rate) > fabsf(mWorstRate)) mWorstRate = rate;
+        mRateGlitches = mRateGlitches + 1;
+        rate = mLastRate;
+    }
+    // float temp = rate;
+    if(fabsf(rate) < 0.2f) {
         rate = 0.0f;
     }
     // Fused Euler vector (one readf): x = heading, y = roll, z = pitch.
     auto eulerVec = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
+    // The trustworthy fault signal: heading, roll and pitch all exactly 0.00 at
+    // once is not a real attitude once the robot has moved off boot orientation.
+    // Counted only - the zeros still go through below, so this measures the
+    // problem without changing the behaviour being measured.
+    if (eulerVec.x() == 0.0 && eulerVec.y() == 0.0 && eulerVec.z() == 0.0) {
+        mEulerFaults = mEulerFaults + 1;
+    }
     float euler = cfg::IMU_EULER_SIGN * (float)eulerVec.x(); // heading, CCW-positive
     mRoll = (float)eulerVec.y();                    // gravity-referenced, cache raw
     mPitch = (float)eulerVec.z();
@@ -87,10 +129,21 @@ void Imu::update() {
         mLastFastMicros = nowMicros;
     }
 
+    // Same plausibility test on the fused path. A rejected step must NOT update
+    // mLastEuler, so the next good sample measures across the whole gap instead
+    // of anchoring to the corrupt value.
+    const float dEuler = wrapTo180(euler - mLastEuler);
+    const bool eulerOk = fabsf(dEuler) <= cfg::IMU_MAX_EULER_STEP_DEG;
+    if (!eulerOk) {
+        if (fabsf(dEuler) > fabsf(mWorstEulerStep)) mWorstEulerStep = dEuler;
+        mEulerGlitches = mEulerGlitches + 1;
+    }
+
     // Gyro path while rotating fast AND for IMU_EULER_RESUME_MS afterwards, so
     // the fusion's post-turn catch-up slew never enters the sum. The choice is
     // recorded (isUsingGyro) so a log can attribute heading error to a path.
-    mUsingGyro = (nowMicros - mLastFastMicros < (uint32_t)cfg::IMU_EULER_RESUME_MS * 1000);
+    mUsingGyro = cfg::IMU_GYRO_ONLY ||
+                 (nowMicros - mLastFastMicros < (uint32_t)cfg::IMU_EULER_RESUME_MS * 1000);
     if (mUsingGyro) {
         // Fast rotation: fused output under-counts, integrate the raw rate.
         // dt is measured, not assumed, so scheduling jitter doesn't corrupt
@@ -100,13 +153,17 @@ void Imu::update() {
     } else {
         // Slow/stationary: fused Euler delta - zero drift at rest because the
         // chip keeps re-estimating its own gyro bias. wrapTo180 keeps the
-        // one-sample delta correct across the 0/360 boundary.
-        mHeading += wrapTo180(euler - mLastEuler);
+        // one-sample delta correct across the 0/360 boundary. Scaled like the
+        // gyro branch: without a trim here the two paths disagree on how far
+        // the robot turned, which is what turnCountTestB was measuring.
+        if (eulerOk) mHeading += cfg::IMU_EULER_SCALE * dEuler;
     }
 
     mLastMicros = nowMicros;
     mLastRate = rate;
-    mLastEuler = euler;
+    // Deliberately NOT updated on a rejected step: anchoring to a corrupt value
+    // would turn one bad sample into two bad deltas.
+    if (eulerOk) mLastEuler = euler;
     // No bias tracking here - see the note in config.hpp for what was tried and
     // why it was removed. mGyroBias is set once by captureBias() and held.
 }

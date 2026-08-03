@@ -47,6 +47,10 @@ void espLoggingTask(void* pvParameters);
 
 // loop() helpers (stream over Serial; those reading IMU need imuTask running).
 void csvLogLoop();             // time_ms, heading_deg, dist_m, settled
+// Latest parsed detection + the accepted/rejected line counts. Needs visionTask
+// running. A climbing bad count means ESP_BAUD is too high for the wire - drop
+// BOTH ends (ESP_BAUD here, LINK_BAUD in TestBlobs2.0/include/vision_link.h).
+void visionMonitorLoop();
 void velocityLogLoop();        // drives a fixed duty, prints measured L,R velocity
 void tiltLogLoop();            // prints IMU roll, pitch
 void farSensorCalibrateLoop(); // accumulates + prints far-sensor min/max
